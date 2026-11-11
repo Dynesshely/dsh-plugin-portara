@@ -1,0 +1,9 @@
+# dsh-plugin-portara bundle patch.
+#
+# One host row carries both halves: the host plugin observes gateway routing and
+# writes reload-safe `plugin:portara/route` records, and the browser half
+# (`dsh.client` in package.json) renders them as a collapsible Chat row.
+# No kernel change and no second row are needed.
+- insert:
+    - id: portara-route
+      name: dsh-plugin-portara

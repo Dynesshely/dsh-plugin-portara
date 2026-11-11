@@ -1,0 +1,20 @@
+{
+  "meta": {
+    "title": "Gateway routing",
+    "description": "Shows which Portara gateway channel, account, and upstream model served each reply, including failover history."
+  },
+  "card": {
+    "routed": "Routed to {target}",
+    "switched": "Switched to {target} (attempt {attempt})",
+    "expanded": "Hide failover details",
+    "collapsed": "Show failover details",
+    "attempt": "Attempt {attempt}",
+    "outcome": {
+      "attempt_failed": "failed",
+      "failover_success": "failover succeeded",
+      "quota_cooldown": "quota cooldown"
+    },
+    "status": "HTTP {status}",
+    "noDetail": "Gateway did not disclose the upstream channel"
+  }
+}

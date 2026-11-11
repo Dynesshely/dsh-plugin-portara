@@ -1,0 +1,20 @@
+{
+  "meta": {
+    "title": "网关路由",
+    "description": "在会话流里显示每条回复实际落在 Portara 网关的哪个渠道、哪个上游账户，以及切换历史。"
+  },
+  "card": {
+    "routed": "已路由 {target}",
+    "switched": "切换后 {target}（第 {attempt} 次尝试）",
+    "expanded": "收起切换细节",
+    "collapsed": "展开切换细节",
+    "attempt": "第 {attempt} 次尝试",
+    "outcome": {
+      "attempt_failed": "失败",
+      "failover_success": "切换成功",
+      "quota_cooldown": "额度冷却"
+    },
+    "status": "HTTP {status}",
+    "noDetail": "网关照脱敏设置隐藏了上游渠道"
+  }
+}
