@@ -156,6 +156,11 @@ export function apply(ctx, config = {}) {
 
   /**
    * Commit one query result as a plugin record when its facts changed.
+   *
+   * A store-owned Session refuses an append while another publication is in
+   * flight, so a rejected write is retried briefly before the facts are
+   * forgotten; the record may otherwise be lost until the next model call.
+   *
    * @param {string} sessionId - harness session id.
    * @param {unknown} raw - parsed route-info body.
    * @returns {Promise<void>} fulfillment after the write attempt.
@@ -169,8 +174,12 @@ export function apply(ctx, config = {}) {
       const signature = recordSignature(payload)
       if (signatures.get(sessionId) === signature) return
       signatures.set(sessionId, signature)
-      const written = await writer.append(session, RECORD_TYPE, payload)
-      if (!written) signatures.delete(sessionId)
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        const written = await writer.append(session, RECORD_TYPE, payload)
+        if (written) return
+        await new Promise(resolve => setTimeout(resolve, 30 * (attempt + 1)))
+      }
+      signatures.delete(sessionId)
     } catch { /* silent by contract */ }
   }
 
@@ -209,7 +218,9 @@ export function apply(ctx, config = {}) {
 
   if (!options.enabled) return
 
-  refreshProviders()
+  try {
+    refreshProviders()
+  } catch { /* an unreadable provider directory leaves observation off, never a failed activation */ }
 
   // Confirm the configured endpoints once at activation so the very first
   // request can already carry its session key.

@@ -16,15 +16,47 @@ import { fetchRouteInfo, routeInfoUrl } from './gateway.js'
 const PROBE_SESSION = 'dsh-plugin-portara-discovery'
 
 /**
+ * Find the live Loader entry that declares one settings namespace.
+ *
+ * `Loader.resolve()` only accepts a *tree-path* id, and a profile whose rows sit
+ * under an `include` entry nests them (`include:llm-pi-ai`), while a provider
+ * directory reports the local option id. Both spellings are accepted, and a
+ * profile without the Loader seam simply yields no entry.
+ *
+ * @param {object} ctx - plugin context.
+ * @param {string} settingsNs - namespace (local entry id) reported by the directory.
+ * @returns {object | undefined} the entry, or undefined.
+ */
+function loaderEntry(ctx, settingsNs) {
+  const loader = ctx.get?.('loader')
+  if (loader === undefined) return undefined
+  try {
+    const direct = loader.resolve?.(settingsNs)
+    if (direct !== undefined) return direct
+  } catch { /* nested tree id: fall through to the scan */ }
+  try {
+    const entries = typeof loader.entries === 'function' ? loader.entries() : []
+    for (const entry of entries) {
+      const options = entry?.options
+      if (options?.id === settingsNs) return entry
+      if (typeof entry?.id === 'string' && (entry.id === settingsNs || entry.id.endsWith(`:${settingsNs}`))) {
+        return entry
+      }
+    }
+  } catch { /* no scan seam: no profile */ }
+  return undefined
+}
+
+/**
  * Read one configured provider profile from the Loader entry that owns it.
  * @param {object} ctx - plugin context.
  * @param {{ provider: string, settingsNs: string, settingsPath: readonly string[] }} entry - directory row.
  * @returns {Record<string, unknown> | undefined} resolved profile object.
  */
 function profileOf(ctx, entry) {
-  const loader = ctx.get?.('loader')
-  const owner = loader?.resolve?.(entry.settingsNs)
+  const owner = loaderEntry(ctx, entry.settingsNs)
   let node = owner?.options?.config
+  if (node === null || typeof node !== 'object') return undefined
   for (const segment of entry.settingsPath) {
     if (node === null || typeof node !== 'object') return undefined
     node = node[segment]
@@ -39,7 +71,12 @@ function profileOf(ctx, entry) {
  * @returns {Array<{ provider: string, baseURL?: string, apiKeyEnv?: string }>} candidates.
  */
 export function providerProfiles(ctx) {
-  const directory = ctx.llm?.listConfigurableProviders?.()
+  let directory
+  try {
+    directory = ctx.llm?.listConfigurableProviders?.()
+  } catch {
+    return []
+  }
   if (!Array.isArray(directory)) return []
   const profiles = []
   for (const entry of directory) {

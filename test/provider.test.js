@@ -51,6 +51,52 @@ test('provider profiles tolerate a missing directory and missing profiles', () =
   assert.deepEqual(providerProfiles({ llm: { listConfigurableProviders: () => [{ provider: 'x' }] } }), [])
 })
 
+test('a provider nested under an include entry is still found by its local id', () => {
+  const nested = {
+    llm: {
+      listConfigurableProviders: () => [{
+        provider: 'gw', displayName: 'Gateway', settingsNs: 'llm-pi-ai', settingsPath: ['providers', 'gw'],
+      }],
+    },
+    get(key) {
+      if (key !== 'loader') return undefined
+      return {
+        // Tree-path ids only: the profile root is an include entry.
+        resolve: id => { throw new Error(`cannot resolve entry ${id}`) },
+        entries: () => [{
+          id: 'include:llm-pi-ai',
+          options: { id: 'llm-pi-ai', config: { providers: { gw: { baseURL: 'https://gw.example/v1', apiKeyEnv: 'GW_KEY' } } } },
+        }],
+      }
+    },
+  }
+  assert.deepEqual(providerProfiles(nested), [
+    { provider: 'gw', baseURL: 'https://gw.example/v1', apiKeyEnv: 'GW_KEY' },
+  ])
+})
+
+test('a broken provider directory never throws', () => {
+  const broken = {
+    llm: { listConfigurableProviders: () => { throw new Error('directory exploded') } },
+  }
+  assert.deepEqual(providerProfiles(broken), [])
+  const throwingLoader = {
+    llm: {
+      listConfigurableProviders: () => [{
+        provider: 'gw', displayName: 'Gateway', settingsNs: 'llm-pi-ai', settingsPath: ['providers', 'gw'],
+      }],
+    },
+    get(key) {
+      if (key !== 'loader') return undefined
+      return {
+        resolve: () => { throw new Error('nope') },
+        entries: () => { throw new Error('nope') },
+      }
+    },
+  }
+  assert.deepEqual(providerProfiles(throwingLoader), [])
+})
+
 test('the session header is only sent to a confirmed gateway endpoint', () => {
   const gateways = new Set(['https://gw.example/v1'])
   assert.equal(
