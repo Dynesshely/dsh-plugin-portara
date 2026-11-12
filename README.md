@@ -71,7 +71,8 @@ Requires DeepSeek Harness `0.2.x` with the `llm-pi-ai` adapter and a gateway tha
 `/v1/route-info`.
 
 ```bash
-dsh plugin install ~/projects/Dynesshely/dsh-plugin-portara
+git clone https://github.com/Dynesshely/dsh-plugin-portara.git
+dsh plugin install ./dsh-plugin-portara
 ```
 
 Or from the Web UI: **Plugin manager → install a local bundle**. A new bundle can activate through the
