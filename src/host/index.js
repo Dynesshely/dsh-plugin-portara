@@ -96,6 +96,12 @@ export function apply(ctx, config = {}) {
   let discoveredAt = 0
   /** Session id → last committed record signature. */
   const signatures = new Map()
+  /**
+   * Endpoints whose last answer carried no routing facts at all (disclosure
+   * off, or nothing routed yet). In-flight polling skips them until a settled
+   * query proves there is something to watch again.
+   */
+  const quietGateways = new Set()
 
   /**
    * Every endpoint that could be a gateway, from either source.
@@ -238,14 +244,17 @@ export function apply(ctx, config = {}) {
    * Query one session's route and commit the outcome.
    * @param {string} sessionId - harness session id.
    * @param {string} baseURL - gateway endpoint.
+   * @param {{ polling?: boolean }} [intent] - set for an in-flight poll, which
+   *   stays silent while the endpoint is known to disclose nothing.
    * @returns {Promise<void>} fulfillment after the attempt.
    */
-  async function observe(sessionId, baseURL) {
+  async function observe(sessionId, baseURL, intent = {}) {
     try {
       if (!gateways.has(baseURL)) {
         probeEndpoint(baseURL)
         return
       }
+      if (intent.polling === true && quietGateways.has(baseURL)) return
       const apiKey = await gatewayKey(baseURL)
       if (apiKey === undefined) return
       const raw = await fetchRouteInfo({
@@ -256,6 +265,8 @@ export function apply(ctx, config = {}) {
         signal: lifetime.signal,
       })
       if (raw === undefined) return
+      if (normalizeRouteInfo(raw) === undefined) quietGateways.add(baseURL)
+      else quietGateways.delete(baseURL)
       await commit(sessionId, raw)
     } catch { /* silent by contract */ }
   }
@@ -264,6 +275,7 @@ export function apply(ctx, config = {}) {
     lifetime.abort(new Error('dsh-plugin-portara was unloaded'))
     signatures.clear()
     gateways.clear()
+    quietGateways.clear()
     probing.clear()
     probeAt.clear()
   }, 'portara-route: stop gateway observation')
@@ -313,7 +325,7 @@ export function apply(ctx, config = {}) {
             const baseURL = providerBaseURLs.get(request.provider)
             if (baseURL === undefined) return
             polling = true
-            void observe(sessionId, baseURL).finally(() => { polling = false })
+            void observe(sessionId, baseURL, { polling: true }).finally(() => { polling = false })
           }, options.pollIntervalMs)
           timer.unref?.()
           stopPolling = () => { clearInterval(timer) }

@@ -42,7 +42,11 @@ exposeRoutingDetail: channel   # off | alias | channel
 ```
 
 With disclosure off, the endpoint answers with an empty structure and this plugin writes nothing — no card
-and no error.
+and no error. In that state the plugin is also not observable at all: it does not poll the gateway while a
+reply streams, because the first answer already proved there is nothing to show.
+
+The current deployment of the gateway answers `exposeRoutingInfo: false`, so the card is invisible until
+that switch is turned on at the gateway (Settings → 网关 → 暴露路由信息, or `PATCH /api/settings`).
 
 ## Configuration
 
