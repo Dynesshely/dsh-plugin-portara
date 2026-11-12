@@ -25,7 +25,7 @@ No DSH kernel file is modified. The plugin only uses published seams.
 ## Install
 
 ```bash
-dsh plugin install /home/<you>/projects/Dynesshely/dsh-plugin-portara
+dsh plugin install ~/projects/Dynesshely/dsh-plugin-portara
 # or from the Web UI: Plugin manager → install a local bundle
 ```
 
@@ -61,7 +61,7 @@ All keys are optional; the defaults work without configuration.
         injectSessionHeader: true # send x-portara-client-session only to confirmed gateways
         gateways:                 # optional explicit gateways (skips discovery)
           - baseURL: https://portara.example/v1
-            apiKeyEnv: PORTARA_AI_GATEWAY_API_KEY
+            apiKeyEnv: GATEWAY_API_KEY
 ```
 
 Gateway discovery reads the live model-provider configuration: every provider that declares a `baseURL`
