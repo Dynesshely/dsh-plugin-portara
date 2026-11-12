@@ -20,7 +20,8 @@
     "locale",
     "icon.svg",
     "README.md",
-    "docs"
+    "docs",
+    "assets"
   ],
   "icon": "./icon.svg",
   "dsh": {
