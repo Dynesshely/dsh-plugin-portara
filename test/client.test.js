@@ -4,18 +4,38 @@ import { test } from 'node:test'
 /** Captured Client module registration. */
 let loaded
 
+/** Hook slots for the stub React runtime, reset before each render. */
+let hookSlots = []
+let hookIndex = 0
+
 /**
- * Stub `react` for the pure helpers the client half exports for tests.
+ * Stub `react` for the headless render checks below.
  * @returns {object} minimal React surface.
  */
 function fakeReact() {
   return {
-    createElement: () => null,
-    useMemo: value => value,
-    useState: initial => [initial, () => {}],
+    createElement: (type, props, ...children) => ({ type, props: props ?? {}, children }),
+    useMemo: compute => compute(),
+    useState: (initial) => {
+      const slot = hookIndex
+      hookIndex += 1
+      if (!(slot in hookSlots)) hookSlots[slot] = initial
+      return [hookSlots[slot], value => {
+        hookSlots[slot] = typeof value === 'function' ? value(hookSlots[slot]) : value
+      }]
+    },
     useSyncExternalStore: (_subscribe, getSnapshot) => getSnapshot(),
     useCallback: value => value,
   }
+}
+
+/**
+ * Reset the hook runtime between renders.
+ * @returns {void}
+ */
+function resetHooks() {
+  hookIndex = 0
+  hookSlots = []
 }
 
 globalThis.window = { __ModuleLoader__: { load: config => { loaded = config } } }
@@ -57,6 +77,23 @@ const SWITCHED = {
 
 test('the client module registers under the bundle id', () => {
   assert.equal(loaded.id, 'dsh-plugin-portara')
+})
+
+test('every registration is owned by a disposer', () => {
+  const disposals = []
+  const { ctx } = createClientContext()
+  ctx.effect = (setup) => {
+    const dispose = setup()
+    disposals.push(dispose)
+    return () => { if (typeof dispose === 'function') dispose() }
+  }
+  moduleNamespace.apply(ctx)
+  // Two locale dictionaries and the Conversation Definition; the slot injection owns its registration.
+  assert.equal(disposals.length, 3)
+  for (const dispose of disposals) {
+    assert.equal(typeof dispose, 'function')
+    assert.doesNotThrow(() => dispose())
+  }
 })
 
 test('a well-formed payload narrows to the renderer shape', () => {
@@ -125,3 +162,208 @@ test('both shipped languages cover every card key', () => {
     assert.notEqual(DICTS.zh[key], '')
   }
 })
+
+/**
+ * Minimal hook runtime so the component can be rendered without React DOM.
+ * @returns {{ React: object, resetHooks: () => void, resetAll: () => void }} fake runtime.
+ */
+function createHookRuntime() {
+  let states = []
+  let index = 0
+  const React = {
+    createElement: (type, props, ...children) => ({ type, props: props ?? {}, children }),
+    useMemo: compute => compute(),
+    useState: (initial) => {
+      const slot = index
+      index += 1
+      if (!(slot in states)) states[slot] = initial
+      return [states[slot], value => { states[slot] = typeof value === 'function' ? value(states[slot]) : value }]
+    },
+    useSyncExternalStore: (_subscribe, getSnapshot) => getSnapshot(),
+  }
+  return {
+    React,
+    resetHooks: () => { index = 0 },
+    resetAll: () => { index = 0; states = [] },
+  }
+}
+
+/**
+ * Collect every text fragment of a rendered element tree.
+ * @param {unknown} tree - rendered element or text.
+ * @returns {string[]} text fragments in order.
+ */
+function textsOf(tree) {
+  if (tree === null || tree === undefined) return []
+  if (typeof tree === 'string') return [tree]
+  if (Array.isArray(tree)) return tree.flatMap(textsOf)
+  return textsOf(tree.children)
+}
+
+/**
+ * Find the first element of one type in a rendered tree.
+ * @param {unknown} tree - rendered element.
+ * @param {string} type - element type to find.
+ * @returns {object | undefined} matching element.
+ */
+function findElement(tree, type) {
+  if (tree === null || typeof tree !== 'object') return undefined
+  if (Array.isArray(tree)) {
+    for (const child of tree) {
+      const found = findElement(child, type)
+      if (found !== undefined) return found
+    }
+    return undefined
+  }
+  if (tree.type === type) return tree
+  return findElement(tree.children, type)
+}
+
+/**
+ * Build the fake Client context the browser half registers against.
+ * @returns {{ ctx: object, registrations: object }} context and captured registrations.
+ */
+function createClientContext() {
+  const definitions = []
+  const slots = []
+  const registered = new Map()
+  const ctx = {
+    effect(setup) {
+      const dispose = setup()
+      return () => { if (typeof dispose === 'function') dispose() }
+    },
+    locale: {
+      register(ns, localeId, dict) {
+        registered.set(`${ns}:${localeId}`, dict)
+        return () => {}
+      },
+      bind() {
+        return t
+      },
+      subscribe: () => () => {},
+      getSnapshot: () => ({ active: 'en' }),
+    },
+    uiConversation: {
+      events: {
+        register(definition) {
+          definitions.push(definition)
+          return () => {}
+        },
+      },
+    },
+    slots: {
+      inject(_key, callback) {
+        callback()
+        return () => {}
+      },
+      register(options, component) {
+        slots.push({ options, component })
+        return () => {}
+      },
+    },
+  }
+  return { ctx, registrations: { definitions, slots, registered } }
+}
+
+test('apply registers one Chat definition and one keyed renderer', () => {
+  const { ctx, registrations } = createClientContext()
+  moduleNamespace.apply(ctx)
+  assert.equal(registrations.definitions.length, 1)
+  const definition = registrations.definitions[0]
+  assert.equal(definition.kind, 'portara-route')
+  assert.equal(definition.target, 'chat')
+  assert.equal(typeof definition.buildViewNode, 'function')
+  assert.equal(registrations.slots.length, 1)
+  assert.deepEqual(registrations.slots[0].options, {
+    name: 'conversation.chat.node',
+    key: 'portara-route',
+  })
+  assert.equal(typeof registrations.slots[0].component, 'function')
+  assert.ok(registrations.registered.has('portara-route:en'))
+  assert.ok(registrations.registered.has('portara-route:zh'))
+})
+
+test('the definition matches only its own record type and keys by session', () => {
+  const { ctx, registrations } = createClientContext()
+  moduleNamespace.apply(ctx)
+  const definition = registrations.definitions[0]
+  const match = definition.match['plugin:portara/route']
+  assert.deepEqual(
+    match({ type: 'plugin:portara/route', data: { ...SWITCHED, sessionKey: 'abc' } }),
+    { id: 'abc', role: 'start' },
+  )
+  assert.equal(match({ type: 'assistant/message', data: {} }), null)
+  assert.equal(match({ type: 'plugin:portara/route', data: { sessionKey: '   ' } }), null)
+  assert.equal(match({ type: 'plugin:portara/route', data: null }), null)
+})
+
+test('a view node carries the engine key, the anchor, and the payload', () => {
+  const { ctx, registrations } = createClientContext()
+  moduleNamespace.apply(ctx)
+  const definition = registrations.definitions[0]
+  const data = readPayload(SWITCHED)
+  const node = definition.buildViewNode({
+    key: 'portara-route:8ff4d582',
+    kind: 'portara-route',
+    id: '8ff4d582',
+    state: data,
+    start: { event: { seq: 42 }, location: { kind: 'step', turn: { turn: 3 }, step: { step: 1 } } },
+    matches: [],
+  })
+  assert.deepEqual(node, {
+    key: 'portara-route:8ff4d582',
+    kind: 'portara-route',
+    id: '8ff4d582',
+    target: 'chat',
+    anchorSeq: 42,
+    location: { kind: 'step', turn: { turn: 3 }, step: { step: 1 } },
+    visibility: 'visible',
+    data,
+  })
+  assert.equal(definition.buildViewNode({ key: 'k', kind: 'portara-route', id: 'i', state: undefined, matches: [] }), null)
+})
+
+test('the rendered row shows the route summary and keeps details collapsed', () => {
+  const { ctx, registrations } = createClientContext()
+  moduleNamespace.apply(ctx)
+  resetHooks()
+  const tree = registrations.slots[0].component({ node: { data: readPayload(SWITCHED) } })
+  const texts = textsOf(tree).join(' | ')
+  assert.match(texts, /Switched to OpenDesign \/ ACP-003 \(attempt 2\) · deepseek-v4\.1-flash/u)
+  assert.doesNotMatch(texts, /Attempt 1/u)
+  const button = findElement(tree, 'button')
+  assert.equal(button?.props['aria-expanded'], 'false')
+  assert.equal(button?.props.type, 'button')
+})
+
+test('a non-routing payload renders nothing at all', () => {
+  const { ctx, registrations } = createClientContext()
+  moduleNamespace.apply(ctx)
+  resetHooks()
+  assert.equal(registrations.slots[0].component({ node: { data: {} } }), null)
+})
+
+test('expanding the row lists every failover attempt', () => {
+  const { ctx, registrations } = createClientContext()
+  moduleNamespace.apply(ctx)
+  resetHooks()
+  const node = { data: readPayload(SWITCHED) }
+  const first = registrations.slots[0].component({ node })
+  const button = findElement(first, 'button')
+  button.props.onClick()
+  // Re-render the same instance: hook slots persist, only the read cursor resets.
+  hookIndex = 0
+  const second = registrations.slots[0].component({ node })
+  const texts = textsOf(second).join(' | ')
+  assert.match(texts, /Attempt 1 · CommandCode \/ ACP-002 · quota cooldown · HTTP 429/u)
+  assert.equal(findElement(second, 'button')?.props['aria-expanded'], 'true')
+  hookIntact()
+})
+
+/**
+ * Assert the hook runtime was actually exercised by the component.
+ * @returns {void}
+ */
+function hookIntact() {
+  assert.ok(hookSlots.length > 0)
+}
