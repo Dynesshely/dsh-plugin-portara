@@ -87,10 +87,23 @@ export function apply(ctx, config = {}) {
   let providerBaseURLs = new Map()
   /** Potential gateway base URL → credential reference. */
   let credentialRefs = new Map()
-  /** Base URLs with an in-flight or finished confirmation attempt. */
-  const probed = new Set()
+  /** Base URLs with an in-flight confirmation attempt. */
+  const probing = new Set()
+  /** Base URL → last confirmation attempt, throttling retries after a miss. */
+  const probeAt = new Map()
+  /** Whether a provider-directory discovery pass is running, and when it last ran. */
+  let discovering = false
+  let discoveredAt = 0
   /** Session id → last committed record signature. */
   const signatures = new Map()
+
+  /**
+   * Every endpoint that could be a gateway, from either source.
+   * @returns {string[]} normalized base URLs.
+   */
+  function baseURLKeys() {
+    return [...credentialRefs.keys()]
+  }
 
   /**
    * Rebuild the provider directory view that places each provider's endpoint.
@@ -98,6 +111,7 @@ export function apply(ctx, config = {}) {
    */
   function refreshProviders() {
     providerBaseURLs = new Map()
+    const previousRefs = credentialRefs
     credentialRefs = new Map()
     for (const row of providerProfiles(ctx)) {
       if (row.baseURL === undefined) continue
@@ -105,9 +119,10 @@ export function apply(ctx, config = {}) {
       providerBaseURLs.set(row.provider, baseURL)
       if (row.apiKeyEnv !== undefined) credentialRefs.set(baseURL, row.apiKeyEnv)
     }
+    for (const [baseURL, ref] of previousRefs) if (!credentialRefs.has(baseURL)) credentialRefs.set(baseURL, ref)
     for (const entry of options.gateways) {
       if (entry.apiKeyEnv !== undefined) credentialRefs.set(entry.baseURL, entry.apiKeyEnv)
-      gateways.set(entry.baseURL, undefined)
+      if (!gateways.has(entry.baseURL)) gateways.set(entry.baseURL, undefined)
     }
   }
 
@@ -127,15 +142,19 @@ export function apply(ctx, config = {}) {
   }
 
   /**
-   * Confirm one endpoint as a gateway in the background; idempotent.
+   * Confirm one endpoint as a gateway in the background; idempotent and
+   * throttled so a missing credential can be retried after the service arrives.
    * @param {string} baseURL - normalized endpoint.
    * @returns {void}
    */
   function probeEndpoint(baseURL) {
-    if (gateways.has(baseURL) || probed.has(baseURL)) return
+    if (gateways.has(baseURL) || probing.has(baseURL)) return
     const ref = credentialRefs.get(baseURL)
     if (ref === undefined) return
-    probed.add(baseURL)
+    const now = Date.now()
+    if (now - (probeAt.get(baseURL) ?? 0) < 15_000) return
+    probeAt.set(baseURL, now)
+    probing.add(baseURL)
     void (async () => {
       try {
         const apiKey = await resolveCredential(ctx, ref)
@@ -148,9 +167,41 @@ export function apply(ctx, config = {}) {
           signal: lifetime.signal,
         })
         if (body === null || typeof body !== 'object') return
-        if (/** @type {{ object?: unknown }} */ (body).object !== 'route.info') return
+        if (/** @type {{ object?: unknown } */ (body).object !== 'route.info') return
         gateways.set(baseURL, apiKey)
-      } catch { /* silent by contract */ }
+      } catch { /* silent by contract */ } finally {
+        probing.delete(baseURL)
+      }
+    })()
+  }
+
+  /**
+   * Rebuild the provider directory view and probe every candidate once more.
+   *
+   * Activation order is not a promise: the credentials or pi-ai services may
+   * settle after this plugin, so discovery is retried (throttled) until at
+   * least one gateway is known.
+   *
+   * @param {boolean} [force] - ignore the throttle.
+   * @returns {void}
+   */
+  function ensureDiscovery(force = false) {
+    if (lifetime.signal.aborted || discovering) return
+    const now = Date.now()
+    if (!force && now - discoveredAt < 30_000) return
+    discoveredAt = now
+    discovering = true
+    void (async () => {
+      try {
+        refreshProviders()
+        const found = await discoverGateways(ctx, { signal: lifetime.signal, timeoutMs: options.timeoutMs, logger })
+        for (const [baseURL, apiKey] of found) gateways.set(baseURL, apiKey)
+        if (found.size === 0) {
+          for (const baseURL of baseURLKeys()) probeEndpoint(baseURL)
+        }
+      } catch { /* silent by contract */ } finally {
+        discovering = false
+      }
     })()
   }
 
@@ -213,7 +264,8 @@ export function apply(ctx, config = {}) {
     lifetime.abort(new Error('dsh-plugin-portara was unloaded'))
     signatures.clear()
     gateways.clear()
-    probed.clear()
+    probing.clear()
+    probeAt.clear()
   }, 'portara-route: stop gateway observation')
 
   if (!options.enabled) return
@@ -223,20 +275,20 @@ export function apply(ctx, config = {}) {
   } catch { /* an unreadable provider directory leaves observation off, never a failed activation */ }
 
   // Confirm the configured endpoints once at activation so the very first
-  // request can already carry its session key.
-  void (async () => {
-    try {
-      const found = await discoverGateways(ctx, { signal: lifetime.signal, timeoutMs: options.timeoutMs, logger })
-      for (const [baseURL, apiKey] of found) gateways.set(baseURL, apiKey)
-    } catch { /* silent by contract */ }
-  })()
+  // request can already carry its session key, then retry when a late service
+  // (credentials, pi-ai) makes discovery possible.
+  ensureDiscovery(true)
+  if (typeof ctx.inject === 'function') ctx.inject(['credentials'], () => { ensureDiscovery(true) })
 
   if (options.injectSessionHeader) {
     ctx.on('llm-pi-ai/request-headers', (request, headers, next) => {
       try {
         const baseURL = typeof request?.baseURL === 'string' ? request.baseURL.trim().replace(/\/+$/u, '') : ''
         if (baseURL !== '') {
-          if (!gateways.has(baseURL)) probeEndpoint(baseURL)
+          if (!gateways.has(baseURL)) {
+            probeEndpoint(baseURL)
+            ensureDiscovery()
+          }
           const value = sessionHeaderValue({ ...request, baseURL }, new Set(gateways.keys()))
           if (value !== undefined && typeof headers?.set === 'function') headers.set(SESSION_HEADER, value)
         }

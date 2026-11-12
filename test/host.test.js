@@ -95,6 +95,10 @@ function fakeContext(facts) {
       }
       return undefined
     },
+    inject(_services, callback) {
+      callback()
+      return () => {}
+    },
     effect(setup) {
       setup()
       return () => {}
