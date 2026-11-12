@@ -15,6 +15,7 @@
       "quota_cooldown": "quota cooldown"
     },
     "status": "HTTP {status}",
-    "noDetail": "Gateway did not disclose the upstream channel"
+    "noDetail": "Gateway did not disclose the upstream channel",
+    "switchedBlind": "Switched (attempt {attempt})"
   }
 }

@@ -135,6 +135,16 @@ test('a redacted route keeps the alias and says why', () => {
   assert.equal(summary.text, 'Switched to balance/deepseek-flash (attempt 2) · Gateway did not disclose the upstream channel')
 })
 
+test('a fully redacted switch still reports the attempt count', () => {
+  const blind = {
+    ...SWITCHED,
+    route: { alias: null, channel: null, account: null, upstreamModel: null },
+  }
+  const summary = summaryOf(readPayload(blind), t)
+  assert.equal(summary.text, 'Switched (attempt 2)')
+  assert.equal(summary.switched, true)
+})
+
 test('history rows carry where, outcome, status, and time', () => {
   const rows = historyRows(readPayload(SWITCHED), t)
   assert.equal(rows.length, 1)

@@ -31,6 +31,7 @@ window.__ModuleLoader__.load({
       en: {
         'card.routed': 'Routed to {target}',
         'card.switched': 'Switched to {target} (attempt {attempt})',
+        'card.switchedBlind': 'Switched (attempt {attempt})',
         'card.expanded': 'Hide failover details',
         'card.collapsed': 'Show failover details',
         'card.attempt': 'Attempt {attempt}',
@@ -43,6 +44,7 @@ window.__ModuleLoader__.load({
       zh: {
         'card.routed': '已路由 {target}',
         'card.switched': '切换后 {target}（第 {attempt} 次尝试）',
+        'card.switchedBlind': '已切换（第 {attempt} 次尝试）',
         'card.expanded': '收起切换细节',
         'card.collapsed': '展开切换细节',
         'card.attempt': '第 {attempt} 次尝试',
@@ -140,9 +142,13 @@ window.__ModuleLoader__.load({
         : channel ?? account ?? route.alias ?? ''
       const switched = history.length > 0
       const attempt = switched ? history.length + 1 : null
-      const label = switched
-        ? t('card.switched', { target, attempt })
-        : t('card.routed', { target })
+      // A redacted gateway may withhold every routing fact; still report the switch.
+      if (target === '' && !switched) return { text: '', switched, attempt, details: false }
+      const label = target === ''
+        ? t('card.switchedBlind', { attempt })
+        : switched
+          ? t('card.switched', { target, attempt })
+          : t('card.routed', { target })
       const withModel = route.upstreamModel !== null && route.upstreamModel !== target
         ? `${label} · ${route.upstreamModel}`
         : label

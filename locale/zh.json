@@ -15,6 +15,7 @@
       "quota_cooldown": "额度冷却"
     },
     "status": "HTTP {status}",
-    "noDetail": "网关照脱敏设置隐藏了上游渠道"
+    "noDetail": "网关照脱敏设置隐藏了上游渠道",
+    "switchedBlind": "已切换（第 {attempt} 次尝试）"
   }
 }
