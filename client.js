@@ -149,7 +149,7 @@ window.__ModuleLoader__.load({
      * process row; the location is Turn-scoped so the card sits outside the
      * process disclosure and stays visible when the process is folded.
      *
-     * @param {{ kind?: string, turn?: { start?: { event?: { seq?: number } }, steps?: readonly { start?: { event?: { seq?: number } } }[] } } | undefined} location - resolved match location.
+     * @param {{ kind?: string, turn?: { start?: { seq?: number }, steps?: readonly { start?: { seq?: number } }[] } } | undefined} location - resolved match location.
      * @returns {{ anchorSeq: number, location: object } | undefined} Turn placement, when any boundary is loaded.
      */
     function turnOpeningOf(location) {
@@ -157,14 +157,15 @@ window.__ModuleLoader__.load({
       if (location === undefined || location === null || turn === undefined) return undefined
       let anchorSeq
       for (const step of turn.steps ?? []) {
-        const seq = step?.start?.event?.seq
+        // A Location's `start` IS the boundary event, not a wrapper around it.
+        const seq = step?.start?.seq
         if (typeof seq === 'number') {
           anchorSeq = seq
           break
         }
       }
       if (anchorSeq === undefined) {
-        const seq = turn.start?.event?.seq
+        const seq = turn.start?.seq
         if (typeof seq !== 'number') return undefined
         anchorSeq = seq
       }

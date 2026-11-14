@@ -420,10 +420,10 @@ test('a card sits at the opening of the Turn assistant content', () => {
   const data = readPayload({ ...SWITCHED, turn: 4 })
   const turnLocation = {
     turn: 4,
-    start: { event: { seq: 30 } },
+    start: { seq: 30 },
     steps: [
-      { start: { event: { seq: 33 } }, step: 1 },
-      { start: { event: { seq: 40 } }, step: 2 },
+      { start: { seq: 33 }, step: 1 },
+      { start: { seq: 40 }, step: 2 },
     ],
   }
   const stepLocation = { kind: 'step', turn: turnLocation, step: { step: 2 } }
