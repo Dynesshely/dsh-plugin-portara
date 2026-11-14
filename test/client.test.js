@@ -309,8 +309,17 @@ test('the status row appends the routed model after the host-owned clock', () =>
   })
   assert.equal(tree.type, 'span')
   assert.equal(tree.props.style.order, 1)
-  assert.equal(tree.props.title, 'OpenDesign / ACP-003')
+  assert.equal(tree.props.title, 'deepseek-v4.1-flash · OpenDesign · ACP-003')
   assert.match(textsOf(tree).join(''), /deepseek-v4\.1-flash/u)
+  assert.doesNotMatch(textsOf(tree).join(''), /deepseek\/deepseek-v4\.1-flash/u)
+})
+
+test('a vendor-prefixed model is shortened for the row and kept whole in its tooltip', () => {
+  const shortModelOf = moduleNamespace.__test.shortModelOf
+  assert.equal(shortModelOf('deepseek/deepseek-v4.1-flash'), 'deepseek-v4.1-flash')
+  assert.equal(shortModelOf('commandcode/MiniMaxAI/MiniMax-M2.5'), 'MiniMax-M2.5')
+  assert.equal(shortModelOf('plain-model'), 'plain-model')
+  assert.equal(shortModelOf(''), '')
 })
 
 test('the status label stays silent without a route and falls back to the alias', () => {
@@ -325,8 +334,8 @@ test('the status label stays silent without a route and falls back to the alias'
   const tree = label.component({
     useChat: selector => selector({ nodes: { values: () => [{ kind: 'portara-route', data: redacted }] } }),
   })
-  assert.match(textsOf(tree).join(''), /balance\/deepseek-flash/u)
-  assert.equal(tree.props.title, undefined)
+  assert.match(textsOf(tree).join(''), /deepseek-flash/u)
+  assert.equal(tree.props.title, 'balance/deepseek-flash')
 })
 
 test('the definition matches only its own record type and keys by session', () => {

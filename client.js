@@ -129,6 +129,17 @@ window.__ModuleLoader__.load({
     }
 
     /**
+     * Shorten a routed model for a single status-row line.
+     * @param {string} model - full upstream model, possibly `vendor/model` or deeper.
+     * @returns {string} the last path segment, or the whole name when there is none.
+     */
+    function shortModelOf(model) {
+      if (typeof model !== 'string') return ''
+      const parts = model.split('/').filter(part => part !== '')
+      return parts.length > 0 ? parts[parts.length - 1] : model
+    }
+
+    /**
      * Render one history timestamp in the reader's clock.
      * @param {string} at - ISO timestamp.
      * @returns {string} local time, or the raw value when unparsable.
@@ -293,9 +304,9 @@ window.__ModuleLoader__.load({
         if (model === undefined) return null
         const channel = routed.route?.channel
         const account = routed.route?.account
-        const hint = [channel, account]
+        const hint = [model, channel, account]
           .filter(value => typeof value === 'string' && value !== '')
-          .join(' / ')
+          .join(' · ')
         return h('span', {
           style: {
             order: 1,
@@ -310,7 +321,7 @@ window.__ModuleLoader__.load({
           ...(hint === '' ? {} : { title: hint }),
         }, [
           h('span', { key: 'icon', 'aria-hidden': true }, '⚡'),
-          h('span', { key: 'model' }, model),
+          h('span', { key: 'model' }, shortModelOf(model)),
         ])
       }
       return PortaraModelLabel
@@ -364,7 +375,7 @@ window.__ModuleLoader__.load({
         }, createModelLabel(ctx)))
       },
       // Pure helpers for unit tests; the module loader ignores extra keys.
-      __test: { readPayload, summaryOf, historyRows, formatTime, routedModelOf, DICTS, KIND, RECORD_TYPE },
+      __test: { readPayload, summaryOf, historyRows, formatTime, routedModelOf, shortModelOf, DICTS, KIND, RECORD_TYPE },
     }
   },
 })
