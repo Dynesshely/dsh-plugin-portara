@@ -53,6 +53,37 @@ function targetOf(channel, account, alias) {
   return 'unknown route'
 }
 
+/** Note appended when the answer comes from the durable record instead of a live query. */
+export const RECORDED_ROUTE_NOTE =
+  'Last recorded route — the gateway keeps live route information for 15 minutes.'
+
+/**
+ * Convert one durable `plugin:portara/route` payload back into the
+ * `/v1/route-info` body shape so both paths render through one formatter.
+ *
+ * @param {unknown} payload - stored record payload.
+ * @returns {Record<string, unknown> | undefined} route-info-shaped body.
+ */
+export function recordedRouteInfo(payload) {
+  if (payload === null || typeof payload !== 'object' || Array.isArray(payload)) return undefined
+  const stored = /** @type {Record<string, unknown>} */ (payload)
+  const route = stored.route
+  if (route === null || typeof route !== 'object' || Array.isArray(route)) return undefined
+  const source = /** @type {Record<string, unknown>} */ (route)
+  return {
+    object: 'route.info',
+    sessionKey: stored.sessionKey,
+    updatedAt: stored.updatedAt ?? null,
+    route: {
+      alias: source.alias ?? null,
+      channel: source.channel ?? null,
+      account: source.account ?? null,
+      upstreamModel: source.upstreamModel ?? null,
+    },
+    history: Array.isArray(stored.history) ? stored.history : [],
+  }
+}
+
 /**
  * Format the answer to `/portara route`.
  *
@@ -60,9 +91,10 @@ function targetOf(channel, account, alias) {
  * anything: the reader gets an explanation instead of a misleading route.
  *
  * @param {unknown} raw - parsed `/v1/route-info` body.
+ * @param {{ note?: string }} [options] - optional trailing explanation.
  * @returns {string} text for the command card.
  */
-export function formatRouteInfo(raw) {
+export function formatRouteInfo(raw, options = {}) {
   if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
     return 'Portara: the gateway did not answer with routing information.'
   }
@@ -102,6 +134,7 @@ export function formatRouteInfo(raw) {
     const at = text(record.at)
     lines.push(`   ${attempt}. ${where} · ${outcome}${status}${at === null ? '' : ` · ${clock(at)}`}`)
   }
+  if (typeof options.note === 'string' && options.note !== '') lines.push(options.note)
   return lines.join('\n')
 }
 

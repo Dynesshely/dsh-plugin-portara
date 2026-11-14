@@ -77,7 +77,9 @@ The end of a turn's status row (copy, feedback, usage, clock) is owned by `ui-ch
 label therefore registers one entry whose root element sets a larger CSS `order`: flex places it after the
 host-owned clock without restyling or moving any host control, and it disappears when no routing record
 exists. The routed model is read from the plugin's own Chat node through the `useChat` snapshot selector,
-so the label always matches the card above it.
+so the label always matches the card above it. The label keeps the full routed model id and draws its glyph
+inline on the host's 16px outline grid with a `currentColor` stroke: a Client plugin may not import the host
+icon sprite, so matching the grid and weight is what keeps it in the same visual language.
 
 ### 7. `/portara route` answers the UI, not the model
 
@@ -85,8 +87,10 @@ A command handler returns `CommandResult` text that the dispatching composer ren
 `/portara route` a zero-token query: it bypasses the model, resolves the confirmed gateways (running a
 discovery pass first if the command beats the first model call), queries `/v1/route-info` with the session
 id, prints channel/account/upstream model plus failover history, and refreshes the card through the normal
-dedupe path. The verb grammar and the formatting are pure functions in `src/host/command.js`, so both are
-unit-tested without a gateway.
+dedupe path. When the live query has nothing — the gateway keeps its current-route cache for fifteen
+minutes, so a conversation that has been idle reports empty — the command falls back to the newest
+`plugin:portara/route` record in the session log and labels it as the last recorded route. The verb grammar
+and the formatting are pure functions in `src/host/command.js`, so both are unit-tested without a gateway.
 
 ## Rejected alternatives
 

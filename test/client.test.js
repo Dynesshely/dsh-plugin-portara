@@ -314,12 +314,27 @@ test('the status row appends the routed model after the host-owned clock', () =>
   assert.doesNotMatch(textsOf(tree).join(''), /deepseek\/deepseek-v4\.1-flash/u)
 })
 
-test('a vendor-prefixed model is shortened for the row and kept whole in its tooltip', () => {
-  const shortModelOf = moduleNamespace.__test.shortModelOf
-  assert.equal(shortModelOf('deepseek/deepseek-v4.1-flash'), 'deepseek-v4.1-flash')
-  assert.equal(shortModelOf('commandcode/MiniMaxAI/MiniMax-M2.5'), 'MiniMax-M2.5')
-  assert.equal(shortModelOf('plain-model'), 'plain-model')
-  assert.equal(shortModelOf(''), '')
+test('the row keeps the routed model id whole and draws an outline glyph', () => {
+  const { ctx, registrations } = createClientContext()
+  moduleNamespace.apply(ctx)
+  const label = registrations.slots.find(slot => slot.options.id === 'portara-route-model')
+  const payload = readPayload({
+    ...SWITCHED,
+    route: { ...SWITCHED.route, upstreamModel: 'deepseek/deepseek-v4.1-flash' },
+  })
+  const tree = label.component({
+    useChat: selector => selector({ nodes: { values: () => [{ kind: 'portara-route', data: payload }] } }),
+  })
+  const texts = textsOf(tree).join(' | ')
+  assert.match(texts, /deepseek\/deepseek-v4\.1-flash/u)
+  assert.doesNotMatch(texts, /⚡/u)
+  const icon = findElement(tree, 'svg')
+  assert.ok(icon !== undefined)
+  assert.equal(icon.props.viewBox, '0 0 16 16')
+  assert.equal(icon.props.stroke, 'currentColor')
+  assert.equal(icon.props['aria-hidden'], 'true')
+  assert.ok(findElement(icon, 'path') !== undefined)
+  assert.equal(tree.props.title, 'deepseek/deepseek-v4.1-flash · OpenDesign · ACP-003')
 })
 
 test('the status label stays silent without a route and falls back to the alias', () => {

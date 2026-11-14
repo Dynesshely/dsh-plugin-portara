@@ -18,7 +18,10 @@
  */
 
 import { RECORD_TYPE, normalizeRouteInfo, recordSignature } from '../payload.js'
-import { COMMAND_NAME, COMMAND_USAGE, ROUTE_VERB, formatRouteInfo, parseCommandInput } from './command.js'
+import {
+  COMMAND_NAME, COMMAND_USAGE, RECORDED_ROUTE_NOTE, ROUTE_VERB,
+  formatRouteInfo, parseCommandInput, recordedRouteInfo,
+} from './command.js'
 import { fetchRouteInfo, routeInfoUrl } from './gateway.js'
 import { discoverGateways, providerProfiles, resolveCredential, sessionHeaderValue } from './provider.js'
 import { createRecordWriter, sessionCoordinates } from './records.js'
@@ -288,6 +291,29 @@ export function apply(ctx, config = {}) {
   }
 
   /**
+   * Find this session's most recent durable routing record.
+   *
+   * A finished session still holds the route it last used, while the gateway's
+   * live cache expires after fifteen minutes; the command falls back to this so
+   * an old conversation can still answer "where did this go?".
+   *
+   * @param {{ seq?: unknown, eventAt?: (seq: number) => unknown }} session - Session instance.
+   * @returns {unknown | undefined} the newest record payload.
+   */
+  function latestRecordedRoute(session) {
+    try {
+      const end = Number(session?.seq)
+      if (!Number.isSafeInteger(end) || end <= 0 || typeof session?.eventAt !== 'function') return undefined
+      const floor = Math.max(0, end - 20_000)
+      for (let seq = end - 1; seq >= floor; seq -= 1) {
+        const event = /** @type {{ type?: unknown, data?: unknown } | undefined} */ (session.eventAt(seq))
+        if (event !== null && typeof event === 'object' && event.type === RECORD_TYPE) return event.data
+      }
+    } catch { /* silent by contract */ }
+    return undefined
+  }
+
+  /**
    * Query one session's route across every confirmed gateway.
    * @param {string} sessionId - harness session id, also the gateway session key.
    * @returns {Promise<unknown | undefined>} the first answer carrying a route,
@@ -366,11 +392,16 @@ export function apply(ctx, config = {}) {
         }
         const sessionId = String(invocation.agent.session.id)
         const raw = await readRouteInfo(sessionId)
-        if (raw === undefined) {
-          return { kind: 'success', text: 'Portara: no gateway answered this profile. Check the provider configuration.' }
+        if (raw !== undefined && normalizeRouteInfo(raw) !== undefined) {
+          void commit(sessionId, raw)
+          return { kind: 'success', text: formatRouteInfo(raw) }
         }
-        if (normalizeRouteInfo(raw) !== undefined) void commit(sessionId, raw)
-        return { kind: 'success', text: formatRouteInfo(raw) }
+        const recorded = recordedRouteInfo(latestRecordedRoute(invocation.agent.session))
+        if (recorded !== undefined && normalizeRouteInfo(recorded) !== undefined) {
+          return { kind: 'success', text: formatRouteInfo(recorded, { note: RECORDED_ROUTE_NOTE }) }
+        }
+        if (raw !== undefined) return { kind: 'success', text: formatRouteInfo(raw) }
+        return { kind: 'success', text: 'Portara: no gateway answered this profile. Check the provider configuration.' }
       },
     }), 'portara-route: /portara command')
   })

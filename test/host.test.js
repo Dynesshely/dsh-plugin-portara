@@ -412,3 +412,89 @@ test('/portara answers help, unknown verbs, and an answering gateway without a r
     await gateway.close()
   }
 })
+
+test('/portara route falls back to the session\'s last recorded route', { skip }, async () => {
+  const { Session, appendPluginRecord } = await loadSessionModule()
+  const harness = fakeContext({ profileDir: makeProfileDir(), baseURL: 'http://127.0.0.1:1/v1', apiKeyEnv: 'K', apiKey: 'secret' })
+  const gateway = await routeGateway({
+    object: 'route.info',
+    sessionKey: 'k',
+    updatedAt: null,
+    route: { alias: null, channel: null, account: null, upstreamModel: null },
+    history: [],
+  })
+  const originalGet = harness.ctx.get.bind(harness.ctx)
+  harness.ctx.get = key => (key === 'loader'
+    ? { resolve: () => ({ options: { config: { providers: { gw: { baseURL: gateway.baseURL, apiKeyEnv: 'K' } } } } }) }
+    : originalGet(key))
+  try {
+    apply(harness.ctx, { timeoutMs: 500, pollIntervalMs: 0 })
+    const session = Session.create('portara-recorded-session')
+    harness.agents.set('portara-recorded-session', { session })
+    appendPluginRecord(session, 'plugin:portara/route', {
+      version: 1,
+      sessionKey: 'k',
+      updatedAt: '2026-11-14T14:26:23.335Z',
+      route: {
+        alias: 'balance/deepseek-flash',
+        channel: 'OpenDesign',
+        account: 'ACP-003',
+        upstreamModel: 'deepseek/deepseek-v4.1-flash',
+      },
+      history: [{
+        attempt: 1, channel: 'CommandCode', account: 'ACP-002',
+        outcome: 'quota_cooldown', statusCode: 429, reason: 'switched', at: '2026-11-14T14:26:01.000Z',
+      }],
+      turn: 3,
+      step: 1,
+    })
+    const definition = harness.commands[0]
+    const result = await definition.handler({ rawInput: 'route', agent: { session } })
+    assert.equal(result.kind, 'success')
+    assert.match(result.text, /Routed to OpenDesign \/ ACP-003 · deepseek\/deepseek-v4\.1-flash/u)
+    assert.match(result.text, /1\. CommandCode \/ ACP-002 · quota_cooldown · HTTP 429/u)
+    assert.match(result.text, /Last recorded route/u)
+  } finally {
+    await gateway.close()
+  }
+})
+
+test('/portara route prefers live data over the recorded fallback', { skip }, async () => {
+  const { Session, appendPluginRecord } = await loadSessionModule()
+  const harness = fakeContext({ profileDir: makeProfileDir(), baseURL: 'http://127.0.0.1:1/v1', apiKeyEnv: 'K', apiKey: 'secret' })
+  const gateway = await routeGateway({
+    object: 'route.info',
+    sessionKey: 'k',
+    updatedAt: '2026-11-15T00:00:00.000Z',
+    route: {
+      alias: 'balance/deepseek-flash',
+      channel: 'CommandCode',
+      account: 'ACP-004',
+      upstreamModel: 'deepseek/deepseek-v4.1-flash',
+    },
+    history: [],
+  })
+  const originalGet = harness.ctx.get.bind(harness.ctx)
+  harness.ctx.get = key => (key === 'loader'
+    ? { resolve: () => ({ options: { config: { providers: { gw: { baseURL: gateway.baseURL, apiKeyEnv: 'K' } } } } }) }
+    : originalGet(key))
+  try {
+    apply(harness.ctx, { timeoutMs: 500, pollIntervalMs: 0 })
+    const session = Session.create('portara-live-priority')
+    harness.agents.set('portara-live-priority', { session })
+    appendPluginRecord(session, 'plugin:portara/route', {
+      version: 1,
+      sessionKey: 'k',
+      updatedAt: '2026-11-01T00:00:00.000Z',
+      route: { alias: 'old', channel: 'OldChannel', account: 'OLD', upstreamModel: 'old/model' },
+      history: [],
+    })
+    const result = await harness.commands[0].handler({ rawInput: 'route', agent: { session } })
+    assert.equal(result.kind, 'success')
+    assert.match(result.text, /Routed to CommandCode \/ ACP-004/u)
+    assert.doesNotMatch(result.text, /Last recorded route/u)
+    assert.doesNotMatch(result.text, /old\/model/u)
+  } finally {
+    await gateway.close()
+  }
+})

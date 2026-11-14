@@ -129,14 +129,32 @@ window.__ModuleLoader__.load({
     }
 
     /**
-     * Shorten a routed model for a single status-row line.
-     * @param {string} model - full upstream model, possibly `vendor/model` or deeper.
-     * @returns {string} the last path segment, or the whole name when there is none.
+     * Routing glyph shared by the Chat row and the status-row label.
+     *
+     * Drawn inline on the host's 16px outline grid with a 1.1px `currentColor`
+     * stroke, because a Client plugin may not import the host icon sprite: this
+     * keeps the mark in the same weight and colour language as the surrounding
+     * outline controls.
+     *
+     * @param {{ size?: number }} [options] - rendered edge length in pixels.
+     * @returns {object} React element.
      */
-    function shortModelOf(model) {
-      if (typeof model !== 'string') return ''
-      const parts = model.split('/').filter(part => part !== '')
-      return parts.length > 0 ? parts[parts.length - 1] : model
+    function RouteIcon({ size = 14 } = {}) {
+      return h('svg', {
+        width: size,
+        height: size,
+        viewBox: '0 0 16 16',
+        fill: 'none',
+        stroke: 'currentColor',
+        strokeWidth: 1.1,
+        strokeLinecap: 'round',
+        strokeLinejoin: 'round',
+        'aria-hidden': 'true',
+        focusable: 'false',
+        style: { flex: 'none', display: 'block' },
+      }, [
+        h('path', { key: 'bolt', d: 'M9.9 1.7 3.7 9.2h4l-1.3 5.1 6.2-7.5H8.6z' }),
+      ])
     }
 
     /**
@@ -236,7 +254,10 @@ window.__ModuleLoader__.load({
               color: 'var(--dsw-alias-label-secondary)',
             },
           }, [
-            h('span', { key: 'icon', 'aria-hidden': true, style: { flex: 'none' } }, '⚡'),
+            h('span', {
+              key: 'icon',
+              style: { flex: 'none', display: 'inline-flex', color: 'var(--dsw-alias-brand-primary)' },
+            }, RouteIcon({ size: 14 })),
             h('span', {
               key: 'text',
               style: { minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
@@ -320,8 +341,11 @@ window.__ModuleLoader__.load({
           },
           ...(hint === '' ? {} : { title: hint }),
         }, [
-          h('span', { key: 'icon', 'aria-hidden': true }, '⚡'),
-          h('span', { key: 'model' }, shortModelOf(model)),
+          h('span', {
+            key: 'icon',
+            style: { display: 'inline-flex', color: 'var(--dsw-alias-brand-primary)' },
+          }, RouteIcon({ size: 13 })),
+          h('span', { key: 'model' }, model),
         ])
       }
       return PortaraModelLabel
@@ -375,7 +399,7 @@ window.__ModuleLoader__.load({
         }, createModelLabel(ctx)))
       },
       // Pure helpers for unit tests; the module loader ignores extra keys.
-      __test: { readPayload, summaryOf, historyRows, formatTime, routedModelOf, shortModelOf, DICTS, KIND, RECORD_TYPE },
+      __test: { readPayload, summaryOf, historyRows, formatTime, routedModelOf, RouteIcon, DICTS, KIND, RECORD_TYPE },
     }
   },
 })
