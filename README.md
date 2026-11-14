@@ -29,8 +29,8 @@ context is invisible from inside the conversation. This bundle puts it where the
 ⚡ Switched to OpenDesign / ACP-003 (attempt 2) · deepseek-v4.1-flash   ▸
 ```
 
-One row per gateway session, at the same level as a tool-call card. No failover means a one-line summary; a
-failover expands into the attempts that produced the answer. The routed model is also appended to the end
+One row per conversation Turn, rendered at that Turn's opening at the same level as a tool-call card. No
+failover means a one-line summary; a failover expands into the attempts that produced the answer. The routed model is also appended to the end
 of each turn's status row, so the last line of every reply carries `⚡ <upstream model>` without opening
 anything. The label reads `⚡ <channel> / <account> · <full model id>`, hiding a part the gateway withheld,
 and repeats the same facts in its tooltip. Rows that carry this label also get 10px of breathing room before
@@ -52,7 +52,7 @@ The bundle has two halves that share one package and one profile row — no kern
 | Host | `llm-pi-ai/request-headers` | stamps the harness session id as `x-portara-client-session`, so the gateway partitions the request and the later query under the same session key |
 | Host | `llm/stream` | after each conversation call (successful or failed) queries `GET <baseURL>/route-info`, optionally polling while the call is still streaming |
 | Host | `appendPluginRecord()` | writes a `plugin:portara/route` record — an ignorable, log-only event that older readers retain and skip |
-| Client | `uiConversation.events.register()` | one Chat row per gateway session key; later records update that row instead of stacking |
+| Client | `uiConversation.events.register()` | one Chat row per Turn, keyed by the gateway session and the Turn number; later records of that Turn update it instead of stacking |
 | Client | `conversation.chat.node` slot | the collapsible row, localized in English and Chinese, styled with host theme tokens |
 | Client | `conversation.chat.assistant-actions` slot | appends the routed model to the turn status row via one flex item ordered after the host-owned clock |
 | Host | `/portara` command | `route` prints the session's current route and refreshes the card; the handler answers the UI directly, so no model call is spent |
@@ -66,8 +66,9 @@ The bundle has two halves that share one package and one profile row — no kern
   non-ignorable event makes the session unreadable on the next load. The plugin writes only `plugin:`
   records through `appendPluginRecord()` and resolves the Host's own Session module instance first, because
   a second copy of that module cannot brand the Host's `Session`.
-- **No duplicate cards** — records are deduped by the observed routing facts, and every record of one
-  gateway session key updates the same row.
+- **One card per Turn** — records are deduped by the observed routing facts, records of the same Turn update
+  that Turn's card, and each Turn anchors its card at its own opening, so paging in older history never moves
+  or loses one.
 - **No secrets** — the API key stays in the Host process; records carry only the routing facts the gateway
   chose to expose, and nothing is logged.
 
@@ -260,7 +261,7 @@ dsh-plugin-portara/
 [dsh-badge]: https://img.shields.io/badge/dsh-0.2.2--alpha.2-6f42c1?style=flat-square
 [node-badge]: https://img.shields.io/badge/node-%3E%3D20-339933?style=flat-square&logo=node.js&logoColor=white
 [platform-badge]: https://img.shields.io/badge/platform-web-2ea44f?style=flat-square
-[tests-badge]: https://img.shields.io/badge/tests-62%20passing-brightgreen?style=flat-square
+[tests-badge]: https://img.shields.io/badge/tests-64%20passing-brightgreen?style=flat-square
 [license-badge]: https://img.shields.io/github/license/Dynesshely/dsh-plugin-portara?style=flat-square
 [commit-badge]: https://img.shields.io/github/last-commit/Dynesshely/dsh-plugin-portara?style=flat-square
 [stars-badge]: https://img.shields.io/github/stars/Dynesshely/dsh-plugin-portara?style=flat-square

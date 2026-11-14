@@ -53,22 +53,18 @@ routing facts is committed, and the interval stops in the same `finally`.
 The query has a hard timeout (1.5 s by default), is bounded in body size, and resolves every failure to
 "no record". Nothing about it can fail or slow the request path.
 
-### 4. One card per gateway session, keyed by the session key
+### 4. One card per Turn, keyed by the session and the Turn number
 
-The Conversation Definition matches `plugin:portara/route` and returns `{ id: payload.sessionKey }`. The
-assembler treats a repeated `(kind, id)` as an update of the same row, so polling and later turns never
-stack cards: the first record anchors the row inside its step, and each later record refreshes its data.
-The row is placed by the payload's `turn`/`step` (read from the newest step boundary through the supported
-`eventAt()` point read), which puts it in the same visual band as tool-call rows.
+Each Turn that observed a route gets its own card: the match id is
+`<gateway session key>#<turn>`, so records from one Turn update one row and later Turns get their own.
+Dedupe still runs on the observed routing facts, so a repeated query never stacks a second card.
 
-### 5. The card follows the newest record, not the oldest
+### 5. The card sits at the Turn's opening
 
-A Conversation Context keeps every match of its id in sequence order, and its `start` is the earliest
-match. Because all records of one gateway session share the same id, loading an older history page turns an
-older record into the start; anchoring the card at `context.start` would re-anchor it into old history, and
-from the reader's position at the bottom the route would appear to vanish. The view node therefore anchors
-at `context.matches.at(-1)` — the newest record — so paging can only extend what precedes the card, never
-move it.
+A record is written when a model call settles, which is inside the Turn's step. Anchoring the node at the
+record would place the card near the reply; the plugin instead resolves the owning Turn's loaded
+`turn/start` and anchors there, so every round begins with its route. Because each Turn owns a separate
+Context, paging in older history can only add older cards — it cannot re-anchor or lose an existing one.
 
 ### 6. Copy and styling
 

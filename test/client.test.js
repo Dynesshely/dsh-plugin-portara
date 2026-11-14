@@ -352,6 +352,29 @@ test('a redacted route shows the model without a target', () => {
   assert.equal(tree.props.title, 'deepseek/deepseek-v4.1-flash')
 })
 
+test('the status label reads the newest Turn card', () => {
+  const { ctx, registrations } = createClientContext()
+  moduleNamespace.apply(ctx)
+  const label = registrations.slots.find(slot => slot.options.id === 'portara-route-model')
+  const older = readPayload({ ...SWITCHED, turn: 2 })
+  const newer = readPayload({
+    ...SWITCHED,
+    turn: 3,
+    route: { ...SWITCHED.route, upstreamModel: 'deepseek/deepseek-v4.1-flash' },
+  })
+  const tree = label.component({
+    useChat: selector => selector({
+      nodes: {
+        values: () => [
+          { kind: 'portara-route', anchorSeq: 10, data: older },
+          { kind: 'portara-route', anchorSeq: 40, data: newer },
+        ],
+      },
+    }),
+  })
+  assert.match(textsOf(tree).join(''), /deepseek\/deepseek-v4\.1-flash/u)
+})
+
 test('the status label stays silent without a route and falls back to the alias', () => {
   const { ctx, registrations } = createClientContext()
   moduleNamespace.apply(ctx)
@@ -368,7 +391,7 @@ test('the status label stays silent without a route and falls back to the alias'
   assert.equal(tree.props.title, 'balance/deepseek-flash')
 })
 
-test('the definition matches only its own record type and keys by session', () => {
+test('the definition matches only its own record type and keys one card per Turn', () => {
   const { ctx, registrations } = createClientContext()
   moduleNamespace.apply(ctx)
   const definition = registrations.definitions[0]
@@ -377,9 +400,41 @@ test('the definition matches only its own record type and keys by session', () =
     match({ type: 'plugin:portara/route', data: { ...SWITCHED, sessionKey: 'abc' } }),
     { id: 'abc', role: 'start' },
   )
+  assert.deepEqual(
+    match({ type: 'plugin:portara/route', data: { ...SWITCHED, sessionKey: 'abc', turn: 4 } }),
+    { id: 'abc#4', role: 'start' },
+  )
+  assert.deepEqual(
+    match({ type: 'plugin:portara/route', data: { ...SWITCHED, sessionKey: 'abc', turn: 5 } }),
+    { id: 'abc#5', role: 'start' },
+  )
   assert.equal(match({ type: 'assistant/message', data: {} }), null)
   assert.equal(match({ type: 'plugin:portara/route', data: { sessionKey: '   ' } }), null)
   assert.equal(match({ type: 'plugin:portara/route', data: null }), null)
+})
+
+test('a card anchors at its own Turn opening, not at the record position', () => {
+  const { ctx, registrations } = createClientContext()
+  moduleNamespace.apply(ctx)
+  const definition = registrations.definitions[0]
+  const data = readPayload({ ...SWITCHED, turn: 4 })
+  const turnStart = { event: { seq: 30 } }
+  const stepLocation = {
+    kind: 'step',
+    turn: { turn: 4, start: turnStart },
+    step: { step: 2 },
+  }
+  const node = definition.buildViewNode({
+    key: 'portara-route:8ff4d582#4',
+    kind: 'portara-route',
+    id: '8ff4d582#4',
+    state: data,
+    start: { event: { seq: 51 }, role: 'start', location: stepLocation },
+    matches: [{ event: { seq: 51 }, role: 'start', location: stepLocation }],
+  })
+  assert.equal(node.anchorSeq, 30)
+  assert.deepEqual(node.location, { kind: 'turn', turn: stepLocation.turn })
+  assert.equal(node.data.turn, 4)
 })
 
 test('a view node carries the engine key, the anchor, and the payload', () => {

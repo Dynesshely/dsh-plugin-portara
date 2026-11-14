@@ -117,11 +117,46 @@ window.__ModuleLoader__.load({
           })
         }
       }
+      const turn = Number.isSafeInteger(payload.turn) && /** @type {number} */ (payload.turn) >= 0
+        ? /** @type {number} */ (payload.turn)
+        : undefined
       return {
         sessionKey,
         updatedAt: text(payload.updatedAt) ?? null,
         route,
         history,
+        ...(turn === undefined ? {} : { turn }),
+      }
+    }
+
+    /**
+     * Read the owning Turn from one raw record.
+     * @param {unknown} raw - stored record payload.
+     * @returns {number | undefined} non-negative Turn number.
+     */
+    function turnOf(raw) {
+      if (raw === null || typeof raw !== 'object') return undefined
+      const turn = /** @type {Record<string, unknown>} */ (raw).turn
+      return Number.isSafeInteger(turn) && /** @type {number} */ (turn) >= 0 ? /** @type {number} */ (turn) : undefined
+    }
+
+    /**
+     * Resolve the anchor that puts a Turn's card at that Turn's opening.
+     *
+     * A route record arrives inside a Step; the Turn location it resolves to
+     * owns the loaded `turn/start`, so anchoring there renders the card at the
+     * beginning of the round instead of at the point the reply settled.
+     *
+     * @param {{ kind?: string, turn?: { start?: { event?: { seq?: number } } } } | undefined} location - resolved match location.
+     * @returns {{ anchorSeq: number, location: object } | undefined} Turn placement, when its start is loaded.
+     */
+    function turnPlacementOf(location) {
+      const start = location?.turn?.start
+      const seq = start?.event?.seq
+      if (location === undefined || location === null || typeof seq !== 'number') return undefined
+      return {
+        anchorSeq: seq,
+        location: location.kind === 'turn' ? location : { kind: 'turn', turn: location.turn },
       }
     }
 
@@ -304,10 +339,12 @@ window.__ModuleLoader__.load({
         const routed = useChat(snapshot => {
           const nodes = snapshot?.nodes
           if (nodes === undefined || typeof nodes.values !== 'function') return undefined
+          let latest
           for (const node of nodes.values()) {
-            if (node !== null && typeof node === 'object' && node.kind === KIND) return node.data
+            if (node === null || typeof node !== 'object' || node.kind !== KIND) continue
+            if (latest === undefined || node.anchorSeq > latest.anchorSeq) latest = node
           }
-          return undefined
+          return latest?.data
         })
         const model = routedModelOf(routed)
         if (model === undefined) return null
@@ -348,7 +385,13 @@ window.__ModuleLoader__.load({
         [RECORD_TYPE]: event => {
           const payload = readPayload(event?.data)
           if (payload === undefined) return null
-          return { id: payload.sessionKey, role: 'start' }
+          const turn = turnOf(event?.data)
+          // One Context per Turn: every round owns its own card, and records
+          // from different rounds never collapse into one.
+          return {
+            id: turn === undefined ? payload.sessionKey : `${payload.sessionKey}#${turn}`,
+            role: 'start',
+          }
         },
       },
       start: (_context, match) => readPayload(match.event.data),
@@ -357,18 +400,18 @@ window.__ModuleLoader__.load({
         const data = context.state
         const start = context.start
         if (data === undefined || start === undefined) return null
-        // Anchor at the newest matched record, never at the start. Loading an
-        // older history page turns the oldest record into the Context start, and
-        // anchoring there would drag the card up into old turns — from the
-        // reader's position at the bottom the route would look like it vanished.
+        // A Context is scoped to one Turn, so the newest match and the start
+        // belong to the same round; page in older history and the card stays at
+        // its own Turn's opening. Prefer the Turn's loaded start as the anchor.
         const latest = context.matches.length > 0 ? context.matches[context.matches.length - 1] : start
+        const placement = turnPlacementOf(latest.location) ?? turnPlacementOf(start.location)
         return {
           key: context.key,
           kind: KIND,
           id: context.id,
           target: 'chat',
-          anchorSeq: latest.event.seq,
-          location: latest.location,
+          anchorSeq: placement?.anchorSeq ?? latest.event.seq,
+          location: placement?.location ?? latest.location,
           visibility: 'visible',
           data,
         }
@@ -402,7 +445,7 @@ window.__ModuleLoader__.load({
       // Pure helpers for unit tests; the module loader ignores extra keys.
       __test: {
         readPayload, summaryOf, historyRows, formatTime, routedModelOf, routeTargetOf,
-        SPACING_CSS, STATUS_ATTR, DICTS, KIND, RECORD_TYPE,
+        turnOf, turnPlacementOf, SPACING_CSS, STATUS_ATTR, DICTS, KIND, RECORD_TYPE,
       },
     }
   },
