@@ -357,13 +357,18 @@ window.__ModuleLoader__.load({
         const data = context.state
         const start = context.start
         if (data === undefined || start === undefined) return null
+        // Anchor at the newest matched record, never at the start. Loading an
+        // older history page turns the oldest record into the Context start, and
+        // anchoring there would drag the card up into old turns — from the
+        // reader's position at the bottom the route would look like it vanished.
+        const latest = context.matches.length > 0 ? context.matches[context.matches.length - 1] : start
         return {
           key: context.key,
           kind: KIND,
           id: context.id,
           target: 'chat',
-          anchorSeq: start.event.seq,
-          location: start.location,
+          anchorSeq: latest.event.seq,
+          location: latest.location,
           visibility: 'visible',
           data,
         }

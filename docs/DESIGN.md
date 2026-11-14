@@ -61,7 +61,16 @@ stack cards: the first record anchors the row inside its step, and each later re
 The row is placed by the payload's `turn`/`step` (read from the newest step boundary through the supported
 `eventAt()` point read), which puts it in the same visual band as tool-call rows.
 
-### 5. Copy and styling
+### 5. The card follows the newest record, not the oldest
+
+A Conversation Context keeps every match of its id in sequence order, and its `start` is the earliest
+match. Because all records of one gateway session share the same id, loading an older history page turns an
+older record into the start; anchoring the card at `context.start` would re-anchor it into old history, and
+from the reader's position at the bottom the route would appear to vanish. The view node therefore anchors
+at `context.matches.at(-1)` — the newest record — so paging can only extend what precedes the card, never
+move it.
+
+### 6. Copy and styling
 
 Card copy is registered into the client locale service under the plugin's own namespace; the exported
 `locale/*.json` files carry the plugin-manager title and description. Styling uses the `--dsw-alias-*`
@@ -69,7 +78,7 @@ theme tokens only, so light/dark switching works without literal colors. The row
 plus an optional disclosure list of failover attempts; nothing is written outside the component, and a
 malformed payload renders nothing rather than crashing the slot.
 
-### 6. The status-row label rides the shared action row
+### 7. The status-row label rides the shared action row
 
 The end of a turn's status row (copy, feedback, usage, clock) is owned by `ui-chat`'s
 `MessageIconActions`. Its only plugin extension point with the right data access is the
@@ -82,7 +91,7 @@ so the label always matches the card above it. The label reads
 is shown as-is (a withheld channel or account simply drops out) rather than shortened, because the point of
 the line is to answer "which model, where" at a glance.
 
-### 7. `/portara route` answers the UI, not the model
+### 8. `/portara route` answers the UI, not the model
 
 A command handler returns `CommandResult` text that the dispatching composer renders directly. That makes
 `/portara route` a zero-token query: it bypasses the model, resolves the confirmed gateways (running a
@@ -93,7 +102,7 @@ minutes, so a conversation that has been idle reports empty — the command fall
 `plugin:portara/route` record in the session log and labels it as the last recorded route. The verb grammar
 and the formatting are pure functions in `src/host/command.js`, so both are unit-tested without a gateway.
 
-### 8. A little breathing room after the route line
+### 9. A little breathing room after the route line
 
 The host's flow gap after a Turn's action row is 4px, which is fine for a row of icons but cramped once that
 row carries text. The plugin therefore installs one stylesheet for its lifetime with a single rule keyed on

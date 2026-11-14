@@ -260,7 +260,7 @@ dsh-plugin-portara/
 [dsh-badge]: https://img.shields.io/badge/dsh-0.2.2--alpha.2-6f42c1?style=flat-square
 [node-badge]: https://img.shields.io/badge/node-%3E%3D20-339933?style=flat-square&logo=node.js&logoColor=white
 [platform-badge]: https://img.shields.io/badge/platform-web-2ea44f?style=flat-square
-[tests-badge]: https://img.shields.io/badge/tests-61%20passing-brightgreen?style=flat-square
+[tests-badge]: https://img.shields.io/badge/tests-62%20passing-brightgreen?style=flat-square
 [license-badge]: https://img.shields.io/github/license/Dynesshely/dsh-plugin-portara?style=flat-square
 [commit-badge]: https://img.shields.io/github/last-commit/Dynesshely/dsh-plugin-portara?style=flat-square
 [stars-badge]: https://img.shields.io/github/stars/Dynesshely/dsh-plugin-portara?style=flat-square

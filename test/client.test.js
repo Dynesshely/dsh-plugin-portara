@@ -408,6 +408,34 @@ test('a view node carries the engine key, the anchor, and the payload', () => {
   assert.equal(definition.buildViewNode({ key: 'k', kind: 'portara-route', id: 'i', state: undefined, matches: [] }), null)
 })
 
+test('the card anchors at the newest record so loading earlier cannot move it', () => {
+  const { ctx, registrations } = createClientContext()
+  moduleNamespace.apply(ctx)
+  const definition = registrations.definitions[0]
+  const data = readPayload(SWITCHED)
+  const start = {
+    event: { seq: 42 },
+    role: 'start',
+    location: { kind: 'step', turn: { turn: 3 }, step: { step: 1 } },
+  }
+  const latest = {
+    event: { seq: 77 },
+    role: 'update',
+    location: { kind: 'step', turn: { turn: 9 }, step: { step: 2 } },
+  }
+  const node = definition.buildViewNode({
+    key: 'portara-route:8ff4d582',
+    kind: 'portara-route',
+    id: '8ff4d582',
+    state: data,
+    start,
+    matches: [start, latest],
+  })
+  assert.equal(node.anchorSeq, 77)
+  assert.deepEqual(node.location, latest.location)
+  assert.equal(node.data, data)
+})
+
 test('the rendered row shows the route summary and keeps details collapsed', () => {
   const { ctx, registrations } = createClientContext()
   moduleNamespace.apply(ctx)
