@@ -90,9 +90,9 @@ test('every registration is owned by a disposer', () => {
     return () => { if (typeof dispose === 'function') dispose() }
   }
   moduleNamespace.apply(ctx)
-  // Two locale dictionaries and the Conversation Definition; the slot injection
-  // owns its renderer registration.
-  assert.equal(disposals.length, 3)
+  // The spacing stylesheet, two locale dictionaries, and the Conversation Definition;
+  // the slot injection owns its registration.
+  assert.equal(disposals.length, 4)
   for (const dispose of disposals) {
     assert.equal(typeof dispose, 'function')
     assert.doesNotThrow(() => dispose())
@@ -278,7 +278,7 @@ function createClientContext() {
   return { ctx, registrations: { definitions, slots, registered } }
 }
 
-test('apply registers one Chat definition and one keyed renderer', () => {
+test('apply registers one Chat definition, one keyed renderer, and the status label', () => {
   const { ctx, registrations } = createClientContext()
   moduleNamespace.apply(ctx)
   assert.equal(registrations.definitions.length, 1)
@@ -286,14 +286,109 @@ test('apply registers one Chat definition and one keyed renderer', () => {
   assert.equal(definition.kind, 'portara-route')
   assert.equal(definition.target, 'chat')
   assert.equal(typeof definition.buildViewNode, 'function')
-  assert.equal(registrations.slots.length, 1)
+  assert.equal(registrations.slots.length, 2)
   assert.deepEqual(registrations.slots[0].options, {
     name: 'conversation.chat.node',
     key: 'portara-route',
   })
+  assert.deepEqual(registrations.slots[1].options, {
+    name: 'conversation.chat.assistant-actions',
+    id: 'portara-route-model',
+    order: 50,
+  })
   assert.equal(typeof registrations.slots[0].component, 'function')
+  assert.equal(typeof registrations.slots[1].component, 'function')
   assert.ok(registrations.registered.has('portara-route:en'))
   assert.ok(registrations.registered.has('portara-route:zh'))
+})
+
+test('the status row appends the routed model after the host-owned clock', () => {
+  const { ctx, registrations } = createClientContext()
+  moduleNamespace.apply(ctx)
+  const label = registrations.slots.find(slot => slot.options.id === 'portara-route-model')
+  const payload = readPayload(SWITCHED)
+  const tree = label.component({
+    useChat: selector => selector({ nodes: { values: () => [{ kind: 'portara-route', data: payload }] } }),
+  })
+  assert.equal(tree.type, 'span')
+  assert.equal(tree.props.style.order, 1)
+  assert.equal(tree.props.title, 'deepseek-v4.1-flash · OpenDesign · ACP-003')
+  assert.match(textsOf(tree).join(''), /deepseek-v4\.1-flash/u)
+  assert.doesNotMatch(textsOf(tree).join(''), /deepseek\/deepseek-v4\.1-flash/u)
+})
+
+test('the row shows the emoji, the channel and account, then the full model id', () => {
+  const { ctx, registrations } = createClientContext()
+  moduleNamespace.apply(ctx)
+  const label = registrations.slots.find(slot => slot.options.id === 'portara-route-model')
+  const payload = readPayload({
+    ...SWITCHED,
+    route: { ...SWITCHED.route, upstreamModel: 'deepseek/deepseek-v4.1-flash' },
+  })
+  const tree = label.component({
+    useChat: selector => selector({ nodes: { values: () => [{ kind: 'portara-route', data: payload }] } }),
+  })
+  const texts = textsOf(tree).join('')
+  assert.match(texts, /⚡/u)
+  assert.match(texts, /OpenDesign \/ ACP-003/u)
+  assert.match(texts, /deepseek\/deepseek-v4\.1-flash/u)
+  assert.equal(texts, '⚡OpenDesign / ACP-003 · deepseek/deepseek-v4.1-flash')
+  assert.equal(findElement(tree, 'svg'), undefined)
+  assert.equal(tree.props.title, 'deepseek/deepseek-v4.1-flash · OpenDesign · ACP-003')
+})
+
+test('a redacted route shows the model without a target', () => {
+  const { ctx, registrations } = createClientContext()
+  moduleNamespace.apply(ctx)
+  const label = registrations.slots.find(slot => slot.options.id === 'portara-route-model')
+  const payload = readPayload({
+    ...SWITCHED,
+    route: { alias: 'balance/deepseek-flash', channel: null, account: null, upstreamModel: 'deepseek/deepseek-v4.1-flash' },
+  })
+  const tree = label.component({
+    useChat: selector => selector({ nodes: { values: () => [{ kind: 'portara-route', data: payload }] } }),
+  })
+  assert.equal(textsOf(tree).join(''), '⚡deepseek/deepseek-v4.1-flash')
+  assert.equal(tree.props.title, 'deepseek/deepseek-v4.1-flash')
+})
+
+test('the status label reads the newest Turn card', () => {
+  const { ctx, registrations } = createClientContext()
+  moduleNamespace.apply(ctx)
+  const label = registrations.slots.find(slot => slot.options.id === 'portara-route-model')
+  const older = readPayload({ ...SWITCHED, turn: 2 })
+  const newer = readPayload({
+    ...SWITCHED,
+    turn: 3,
+    route: { ...SWITCHED.route, upstreamModel: 'deepseek/deepseek-v4.1-flash' },
+  })
+  const tree = label.component({
+    useChat: selector => selector({
+      nodes: {
+        values: () => [
+          { kind: 'portara-route', anchorSeq: 10, data: older },
+          { kind: 'portara-route', anchorSeq: 40, data: newer },
+        ],
+      },
+    }),
+  })
+  assert.match(textsOf(tree).join(''), /deepseek\/deepseek-v4\.1-flash/u)
+})
+
+test('the status label stays silent without a route and falls back to the alias', () => {
+  const { ctx, registrations } = createClientContext()
+  moduleNamespace.apply(ctx)
+  const label = registrations.slots.find(slot => slot.options.id === 'portara-route-model')
+  assert.equal(label.component({ useChat: selector => selector({ nodes: { values: () => [] } }) }), null)
+  const redacted = readPayload({
+    ...SWITCHED,
+    route: { alias: 'balance/deepseek-flash', channel: null, account: null, upstreamModel: null },
+  })
+  const tree = label.component({
+    useChat: selector => selector({ nodes: { values: () => [{ kind: 'portara-route', data: redacted }] } }),
+  })
+  assert.match(textsOf(tree).join(''), /deepseek-flash/u)
+  assert.equal(tree.props.title, 'balance/deepseek-flash')
 })
 
 test('the definition matches only its own record type and keys one card per Turn', () => {
@@ -318,7 +413,7 @@ test('the definition matches only its own record type and keys one card per Turn
   assert.equal(match({ type: 'plugin:portara/route', data: null }), null)
 })
 
-test('a card sits at its Turn opening, outside the fold, not at the record', () => {
+test('a card sits at the opening of the Turn assistant content', () => {
   const { ctx, registrations } = createClientContext()
   moduleNamespace.apply(ctx)
   const definition = registrations.definitions[0]
@@ -374,6 +469,34 @@ test('a view node carries the engine key, the anchor, and the payload', () => {
   assert.equal(definition.buildViewNode({ key: 'k', kind: 'portara-route', id: 'i', state: undefined, matches: [] }), null)
 })
 
+test('the card anchors at the newest record so loading earlier cannot move it', () => {
+  const { ctx, registrations } = createClientContext()
+  moduleNamespace.apply(ctx)
+  const definition = registrations.definitions[0]
+  const data = readPayload(SWITCHED)
+  const start = {
+    event: { seq: 42 },
+    role: 'start',
+    location: { kind: 'step', turn: { turn: 3 }, step: { step: 1 } },
+  }
+  const latest = {
+    event: { seq: 77 },
+    role: 'update',
+    location: { kind: 'step', turn: { turn: 9 }, step: { step: 2 } },
+  }
+  const node = definition.buildViewNode({
+    key: 'portara-route:8ff4d582',
+    kind: 'portara-route',
+    id: '8ff4d582',
+    state: data,
+    start,
+    matches: [start, latest],
+  })
+  assert.equal(node.anchorSeq, 77)
+  assert.deepEqual(node.location, latest.location)
+  assert.equal(node.data, data)
+})
+
 test('the rendered row shows the route summary and keeps details collapsed', () => {
   const { ctx, registrations } = createClientContext()
   moduleNamespace.apply(ctx)
@@ -418,3 +541,59 @@ test('expanding the row lists every failover attempt', () => {
 function hookIntact() {
   assert.ok(hookSlots.length > 0)
 }
+
+test('the status-row label is marked and its spacing rule is scoped to that mark', () => {
+  assert.match(SPACING_CSS, /\[data-chat-flow-kind="turn-tail"\]/u)
+  assert.match(SPACING_CSS, /:has\(\[data-portara-route-status\]\)/u)
+  assert.match(SPACING_CSS, /--portara-status-row-gap/u)
+  const { ctx, registrations } = createClientContext()
+  moduleNamespace.apply(ctx)
+  const label = registrations.slots.find(slot => slot.options.id === 'portara-route-model')
+  const tree = label.component({
+    useChat: selector => selector({
+      nodes: { values: () => [{ kind: 'portara-route', data: readPayload(SWITCHED) }] },
+    }),
+  })
+  assert.equal(tree.props[STATUS_ATTR], '')
+})
+
+test('the spacing stylesheet is installed once and removed on dispose', () => {
+  const appended = []
+  const removed = []
+  const previousDocument = globalThis.document
+  globalThis.document = {
+    head: {
+      appendChild(node) {
+        appended.push(node)
+      },
+    },
+    createElement() {
+      return {
+        attributes: {},
+        setAttribute(name, value) { this.attributes[name] = value },
+        remove() { removed.push(this) },
+        textContent: '',
+      }
+    },
+  }
+  const disposals = []
+  const { ctx } = createClientContext()
+  const originalEffect = ctx.effect
+  ctx.effect = (setup) => {
+    const dispose = setup()
+    disposals.push(dispose)
+    return () => { if (typeof dispose === 'function') dispose() }
+  }
+  try {
+    moduleNamespace.apply(ctx)
+  } finally {
+    ctx.effect = originalEffect
+    globalThis.document = previousDocument
+  }
+  assert.equal(appended.length, 1)
+  assert.equal(appended[0].attributes['data-portara-route-style'], '')
+  assert.equal(appended[0].textContent, SPACING_CSS)
+  assert.equal(disposals.length, 4)
+  disposals[0]()
+  assert.equal(removed.length, 1)
+})

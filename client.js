@@ -25,6 +25,16 @@ window.__ModuleLoader__.load({
     const KIND = 'portara-route'
     /** Durable record type written by the host half. */
     const RECORD_TYPE = 'plugin:portara/route'
+    /** Attribute marking the status-row label, used to scope the spacing rule. */
+    const STATUS_ATTR = 'data-portara-route-status'
+    /**
+     * The host's flow gap after a Turn's action row is 4px, which reads cramped
+     * once that row carries the route line. The rule only applies to a Turn tail
+     * that actually rendered our label, adds room below it without touching the
+     * row, and stays overridable through one CSS variable.
+     */
+    const SPACING_CSS = `[data-chat-flow-kind="turn-tail"]:has([${STATUS_ATTR}]){padding-bottom:var(--portara-status-row-gap,10px)}`
+
     /** Card copy, duplicated from `locale/*.json` because the JSON files carry display metadata. */
     const DICTS = {
       en: {
@@ -134,9 +144,9 @@ window.__ModuleLoader__.load({
      * Resolve the anchor that puts a Turn's card at the opening of that Turn's
      * assistant content — after the user's prompt and before the process fold.
      *
-     * The Turn's first loaded `step/start` is the earliest event after the claim
-     * of the round's input, so anchoring there lands between the prompt and the
-     * first process row; the location is Turn-scoped so the card sits outside the
+     * The Turn's first loaded `step/start` is the earliest event after the round's
+     * input was claimed, so anchoring there lands between the prompt and the first
+     * process row; the location is Turn-scoped so the card sits outside the
      * process disclosure and stays visible when the process is folded.
      *
      * @param {{ kind?: string, turn?: { start?: { event?: { seq?: number } }, steps?: readonly { start?: { event?: { seq?: number } } }[] } } | undefined} location - resolved match location.
@@ -162,69 +172,26 @@ window.__ModuleLoader__.load({
     }
 
     /**
-     * Validate and narrow one stored record payload.
-     *
-     * The client never trusts the log: a record written by a future version may
-     * carry fields this build does not know, and a malformed one must render
-     * nothing rather than crash the slot entry.
-     *
-     * @param {unknown} raw - event payload.
-     * @returns {object | undefined} narrowed payload.
+     * Compose the disclosed gateway location.
+     * @param {unknown} channel - channel name, when disclosed.
+     * @param {unknown} account - upstream account, when disclosed.
+     * @returns {string | undefined} `channel / account`, or the one part that exists.
      */
-    function readPayload(raw) {
-      if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) return undefined
-      const payload = /** @type {Record<string, unknown>} */ (raw)
-      const sessionKey = text(payload.sessionKey)
-      if (sessionKey === undefined) return undefined
-      const routeRaw = payload.route
-      if (routeRaw === null || typeof routeRaw !== 'object' || Array.isArray(routeRaw)) return undefined
-      const routeRecord = /** @type {Record<string, unknown>} */ (routeRaw)
-      const route = {
-        alias: text(routeRecord.alias) ?? null,
-        channel: text(routeRecord.channel) ?? null,
-        account: text(routeRecord.account) ?? null,
-        upstreamModel: text(routeRecord.upstreamModel) ?? null,
-      }
-      const history = []
-      if (Array.isArray(payload.history)) {
-        for (const entry of payload.history) {
-          if (entry === null || typeof entry !== 'object') continue
-          const record = /** @type {Record<string, unknown>} */ (entry)
-          const at = text(record.at)
-          const outcome = text(record.outcome)
-          if (at === undefined || outcome === undefined) continue
-          history.push({
-            attempt: Number.isSafeInteger(record.attempt) ? /** @type {number} */ (record.attempt) : history.length + 1,
-            channel: text(record.channel) ?? null,
-            account: text(record.account) ?? null,
-            outcome,
-            statusCode: Number.isSafeInteger(record.statusCode) ? /** @type {number} */ (record.statusCode) : null,
-            reason: text(record.reason) ?? '',
-            at,
-          })
-        }
-      }
-      const turn = Number.isSafeInteger(payload.turn) && /** @type {number} */ (payload.turn) >= 0
-        ? /** @type {number} */ (payload.turn)
-        : undefined
-      return {
-        sessionKey,
-        updatedAt: text(payload.updatedAt) ?? null,
-        route,
-        history,
-        ...(turn === undefined ? {} : { turn }),
-      }
+    function routeTargetOf(channel, account) {
+      const parts = [channel, account].filter(value => typeof value === 'string' && value !== '')
+      return parts.length === 0 ? undefined : parts.join(' / ')
     }
 
     /**
-     * Read the owning Turn from one raw record.
-     * @param {unknown} raw - stored record payload.
-     * @returns {number | undefined} non-negative Turn number.
+     * Read the model name the gateway actually served.
+     * @param {object | undefined} payload - narrowed payload.
+     * @returns {string | undefined} upstream model, falling back to the alias.
      */
-    function turnOf(raw) {
-      if (raw === null || typeof raw !== 'object') return undefined
-      const turn = /** @type {Record<string, unknown>} */ (raw).turn
-      return Number.isSafeInteger(turn) && /** @type {number} */ (turn) >= 0 ? /** @type {number} */ (turn) : undefined
+    function routedModelOf(payload) {
+      if (payload === undefined || payload === null || typeof payload !== 'object') return undefined
+      const route = payload.route
+      if (route === null || typeof route !== 'object') return undefined
+      return route.upstreamModel ?? route.alias ?? undefined
     }
 
     /**
@@ -368,6 +335,58 @@ window.__ModuleLoader__.load({
       return PortaraRouteRow
     }
 
+    /**
+     * Build the routed-model label appended to a Turn's status row.
+     *
+     * The label is a direct flex child of the shared action row, so the inline
+     * `order` places it after the host-owned clock — the last item on the line
+     * — without moving or restyling any host control.
+     *
+     * @param {object} ctx - Client plugin context.
+     * @returns {Function} React component for the assistant-actions seat.
+     */
+    function createModelLabel(ctx) {
+      function PortaraModelLabel({ useChat }) {
+        const routed = useChat(snapshot => {
+          const nodes = snapshot?.nodes
+          if (nodes === undefined || typeof nodes.values !== 'function') return undefined
+          let latest
+          for (const node of nodes.values()) {
+            if (node === null || typeof node !== 'object' || node.kind !== KIND) continue
+            if (latest === undefined || node.anchorSeq > latest.anchorSeq) latest = node
+          }
+          return latest?.data
+        })
+        const model = routedModelOf(routed)
+        if (model === undefined) return null
+        const channel = routed.route?.channel
+        const account = routed.route?.account
+        const target = routeTargetOf(channel, account)
+        const hint = [model, channel, account]
+          .filter(value => typeof value === 'string' && value !== '')
+          .join(' · ')
+        return h('span', {
+          [STATUS_ATTR]: '',
+          style: {
+            order: 1,
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '4px',
+            marginLeft: '8px',
+            fontSize: 'calc(var(--dsh-content-font-size-secondary, 13px) - 1px)',
+            color: 'var(--dsw-alias-label-tertiary)',
+            whiteSpace: 'nowrap',
+          },
+          ...(hint === '' ? {} : { title: hint }),
+        }, [
+          h('span', { key: 'icon', 'aria-hidden': true }, '⚡'),
+          ...(target === undefined ? [] : [h('span', { key: 'target' }, `${target} · `)]),
+          h('span', { key: 'model' }, model),
+        ])
+      }
+      return PortaraModelLabel
+    }
+
     /** Conversation Definition: one row per gateway session key. */
     const definition = {
       kind: KIND,
@@ -416,6 +435,14 @@ window.__ModuleLoader__.load({
     return {
       inject: ['slots', 'uiConversation', 'locale'],
       apply(ctx) {
+        ctx.effect(() => {
+          if (typeof document === 'undefined' || document.head === null) return () => {}
+          const style = document.createElement('style')
+          style.setAttribute('data-portara-route-style', '')
+          style.textContent = SPACING_CSS
+          document.head.appendChild(style)
+          return () => { style.remove() }
+        }, 'dsh-plugin-portara: status-row spacing')
         ctx.effect(() => ctx.locale.register(NS, 'en', DICTS.en), 'dsh-plugin-portara: English copy')
         ctx.effect(() => ctx.locale.register(NS, 'zh', DICTS.zh), 'dsh-plugin-portara: Chinese copy')
         ctx.effect(() => ctx.uiConversation.events.register(definition), 'dsh-plugin-portara: routing row definition')
@@ -423,11 +450,16 @@ window.__ModuleLoader__.load({
           name: 'conversation.chat.node',
           key: KIND,
         }, createRow(ctx)))
+        ctx.slots.inject('conversation.chat.assistant-actions', () => ctx.slots.register({
+          name: 'conversation.chat.assistant-actions',
+          id: 'portara-route-model',
+          order: 50,
+        }, createModelLabel(ctx)))
       },
       // Pure helpers for unit tests; the module loader ignores extra keys.
       __test: {
-        readPayload, summaryOf, historyRows, formatTime, turnOf, turnOpeningOf,
-        DICTS, KIND, RECORD_TYPE,
+        readPayload, summaryOf, historyRows, formatTime, routedModelOf, routeTargetOf,
+        turnOf, turnOpeningOf, SPACING_CSS, STATUS_ATTR, DICTS, KIND, RECORD_TYPE,
       },
     }
   },
