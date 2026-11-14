@@ -6,6 +6,7 @@
 
 <p><strong>See the gateway route behind every reply — channel, account, upstream model, failover history — as a collapsible row in the DeepSeek Harness chat stream.</strong></p>
 
+[![Release][release-badge]][releases]
 [![DeepSeek Harness][dsh-badge]][dsh]
 [![Node.js][node-badge]][node]
 [![Platform][platform-badge]][dsh]
@@ -84,6 +85,8 @@ dsh plugin install ./dsh-plugin-portara
 
 Or from the Web UI: **Plugin manager → install a local bundle**. A new bundle can activate through the
 loader's hot reload; the browser half loads on the next page load. No `dsh` restart is required.
+
+Current version: [v0.1.0][releases] — see [Releases][releases] for the change log of every tag.
 
 ### Gateway prerequisite
 
@@ -252,6 +255,7 @@ dsh-plugin-portara/
 [MIT](LICENSE) © 2026 Dynesshely
 
 <!-- links -->
+[release-badge]: https://img.shields.io/github/v/release/Dynesshely/dsh-plugin-portara?style=flat-square&color=6f42c1
 [dsh-badge]: https://img.shields.io/badge/dsh-0.2.2--alpha.2-6f42c1?style=flat-square
 [node-badge]: https://img.shields.io/badge/node-%3E%3D20-339933?style=flat-square&logo=node.js&logoColor=white
 [platform-badge]: https://img.shields.io/badge/platform-web-2ea44f?style=flat-square
@@ -264,6 +268,7 @@ dsh-plugin-portara/
 [dsh]: https://github.com/deepseek-ai/deepseek-harness
 [node]: https://nodejs.org
 [issues]: https://github.com/Dynesshely/dsh-plugin-portara/issues
+[releases]: https://github.com/Dynesshely/dsh-plugin-portara/releases
 [commits]: https://github.com/Dynesshely/dsh-plugin-portara/commits/main
 [stargazers]: https://github.com/Dynesshely/dsh-plugin-portara/stargazers
 [license]: LICENSE
