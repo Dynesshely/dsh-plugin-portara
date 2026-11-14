@@ -1,6 +1,6 @@
 {
   "name": "dsh-plugin-portara",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "type": "module",
   "description": "DSH plugin: show the Portara gateway's load-balancing route for each reply in the chat stream.",
@@ -21,7 +21,8 @@
     "icon.svg",
     "README.md",
     "docs",
-    "assets"
+    "assets",
+    "CHANGELOG.md"
   ],
   "icon": "./icon.svg",
   "dsh": {

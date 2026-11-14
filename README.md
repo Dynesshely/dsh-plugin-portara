@@ -91,7 +91,7 @@ dsh plugin install ./dsh-plugin-portara
 Or from the Web UI: **Plugin manager → install a local bundle**. A new bundle can activate through the
 loader's hot reload; the browser half loads on the next page load. No `dsh` restart is required.
 
-Current version: [v0.1.0][releases] — see [Releases][releases] for the change log of every tag.
+See [Releases][releases] for tagged versions and [CHANGELOG.md](CHANGELOG.md) for what changed.
 
 ### Gateway prerequisite
 
@@ -242,6 +242,7 @@ dsh-plugin-portara/
 │   └── manifest.test.js     # package, patch, locale, icon, README checks
 ├── docs/
 │   └── DESIGN.md
+├── CHANGELOG.md             # release notes by version
 └── assets/
     ├── banner.svg           # source of the banner
     └── banner.png           # rendered banner used above
