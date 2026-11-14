@@ -54,7 +54,7 @@ The bundle has two halves that share one package and one profile row — no kern
 | --- | --- | --- |
 | Host | `llm-pi-ai/request-headers` | stamps the harness session id as `x-portara-client-session`, so the gateway partitions the request and the later query under the same session key |
 | Host | `llm/stream` | after each conversation call (successful or failed) queries `GET <baseURL>/route-info`, optionally polling while the call is still streaming |
-| Host | `appendPluginRecord()` | writes a `plugin:portara/route` record — an ignorable, log-only event that older readers retain and skip |
+| Host | `appendPluginRecord()` | writes a `plugin:portara/route` record — an ignorable, log-only event that older readers retain and skip, stamped with the Turn's opening sequence so the card placement never depends on the browser's loaded history window |
 | Client | `uiConversation.events.register()` | one Chat row per Turn, keyed by the gateway session and the Turn number; later records of that Turn update it instead of stacking |
 | Client | `conversation.chat.node` slot | the collapsible row, localized in English and Chinese, styled with host theme tokens |
 | Client | `conversation.chat.assistant-actions` slot | appends the routed model to the turn status row via one flex item ordered after the host-owned clock |
@@ -264,7 +264,7 @@ dsh-plugin-portara/
 [dsh-badge]: https://img.shields.io/badge/dsh-0.2.2--alpha.2-6f42c1?style=flat-square
 [node-badge]: https://img.shields.io/badge/node-%3E%3D20-339933?style=flat-square&logo=node.js&logoColor=white
 [platform-badge]: https://img.shields.io/badge/platform-web-2ea44f?style=flat-square
-[tests-badge]: https://img.shields.io/badge/tests-64%20passing-brightgreen?style=flat-square
+[tests-badge]: https://img.shields.io/badge/tests-67%20passing-brightgreen?style=flat-square
 [license-badge]: https://img.shields.io/github/license/Dynesshely/dsh-plugin-portara?style=flat-square
 [commit-badge]: https://img.shields.io/github/last-commit/Dynesshely/dsh-plugin-portara?style=flat-square
 [stars-badge]: https://img.shields.io/github/stars/Dynesshely/dsh-plugin-portara?style=flat-square

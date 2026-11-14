@@ -62,12 +62,13 @@ Dedupe still runs on the observed routing facts, so a repeated query never stack
 ### 5. The card sits at the opening of the Turn's assistant content
 
 A record is written when a model call settles, inside the Turn's Step. Anchoring the node at the record
-would put the card near the reply; anchoring at `turn/start` would put it above the user's prompt. The
-plugin instead anchors at the Turn's first loaded `step/start` — the earliest event after the round's input
-was claimed — and gives the node the `turn` group-tree position. The card therefore renders after the
-completion header and before the first process row, stays visible when the process is folded, and, because
-each Turn owns a separate Context, paging in older history can only add older cards — it cannot move or lose
-an existing one.
+would put the card near the reply; anchoring at `turn/start` would put it above the user's prompt. The Host
+therefore stamps the record with the Turn's opening sequence — its first `step/start`, falling back to
+`turn/start` — and the client anchors on that stored value, with the node at the `turn` group-tree
+position. The card renders after the prompt and the completion header, before the first process row, stays
+visible when the process is folded, and never depends on which history window the browser currently holds.
+Because each Turn owns a separate Context, paging in older history can only add older cards — it cannot move
+or lose an existing one.
 
 ### 6. Copy and styling
 
