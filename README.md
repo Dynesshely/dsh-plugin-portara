@@ -33,7 +33,7 @@ One row per gateway session, at the same level as a tool-call card. No failover 
 failover expands into the attempts that produced the answer. The routed model is also appended to the end
 of each turn's status row, so the last line of every reply carries `⚡ <upstream model>` without opening
 anything. The label reads `⚡ <channel> / <account> · <full model id>`, hiding a part the gateway withheld,
-and repeats the same facts in its tooltip. Rows that carry this label also get 8px of breathing room before
+and repeats the same facts in its tooltip. Rows that carry this label also get 10px of breathing room before
 the next message (`--portara-status-row-gap` overrides it). And `/portara route` prints the same facts once,
 on demand, without spending a model call — falling back to the session's last recorded route when the
 gateway's 15-minute live cache has already expired.

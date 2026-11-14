@@ -33,7 +33,7 @@ window.__ModuleLoader__.load({
      * that actually rendered our label, adds room below it without touching the
      * row, and stays overridable through one CSS variable.
      */
-    const SPACING_CSS = `[data-chat-flow-kind="turn-tail"]:has([${STATUS_ATTR}]){padding-bottom:var(--portara-status-row-gap,8px)}`
+    const SPACING_CSS = `[data-chat-flow-kind="turn-tail"]:has([${STATUS_ATTR}]){padding-bottom:var(--portara-status-row-gap,10px)}`
 
     /** Card copy, duplicated from `locale/*.json` because the JSON files carry display metadata. */
     const DICTS = {

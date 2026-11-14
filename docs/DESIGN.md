@@ -97,7 +97,7 @@ and the formatting are pure functions in `src/host/command.js`, so both are unit
 
 The host's flow gap after a Turn's action row is 4px, which is fine for a row of icons but cramped once that
 row carries text. The plugin therefore installs one stylesheet for its lifetime with a single rule keyed on
-`[data-chat-flow-kind="turn-tail"]:has([data-portara-route-status])`: it adds 8px of padding below the tail
+`[data-chat-flow-kind="turn-tail"]:has([data-portara-route-status])`: it adds 10px of padding below the tail
 only on rows that actually rendered the label, leaves every other row and every host control untouched, and
 is tunable through `--portara-status-row-gap`. The style element is owned by the plugin's effect, so
 unloading the plugin removes it.
