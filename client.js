@@ -25,6 +25,8 @@ window.__ModuleLoader__.load({
     const KIND = 'portara-route'
     /** Durable record type written by the host half. */
     const RECORD_TYPE = 'plugin:portara/route'
+    /** Visible build stamp: tells a stale page from a fresh one at a glance. */
+    const BUILD = '2026-11-15T03:55Z-anchor-fix'
     /** Attribute marking the status-row label, used to scope the spacing rule. */
     const STATUS_ATTR = 'data-portara-route-status'
     /**
@@ -280,7 +282,10 @@ window.__ModuleLoader__.load({
         const summary = summaryOf(payload, t)
         const rows = summary.details ? historyRows(payload, t) : []
         const toggle = () => setExpanded(open => !open)
-        return h('div', { style: { display: 'flex', flexDirection: 'column', gap: '2px', padding: '2px 0' } }, [
+        return h('div', {
+          title: `portara-route build ${BUILD}`,
+          style: { display: 'flex', flexDirection: 'column', gap: '2px', padding: '2px 0' },
+        }, [
           h('div', {
             key: 'summary',
             style: {
@@ -363,9 +368,10 @@ window.__ModuleLoader__.load({
         const channel = routed.route?.channel
         const account = routed.route?.account
         const target = routeTargetOf(channel, account)
-        const hint = [model, channel, account]
-          .filter(value => typeof value === 'string' && value !== '')
-          .join(' · ')
+        const hint = [
+          ...[model, channel, account].filter(value => typeof value === 'string' && value !== ''),
+          `build ${BUILD}`,
+        ].join(' · ')
         return h('span', {
           [STATUS_ATTR]: '',
           style: {

@@ -312,7 +312,7 @@ test('the status row appends the routed model after the host-owned clock', () =>
   })
   assert.equal(tree.type, 'span')
   assert.equal(tree.props.style.order, 1)
-  assert.equal(tree.props.title, 'deepseek-v4.1-flash · OpenDesign · ACP-003')
+  assert.match(tree.props.title, /^deepseek-v4\.1-flash · OpenDesign · ACP-003 · build /u)
   assert.match(textsOf(tree).join(''), /deepseek-v4\.1-flash/u)
   assert.doesNotMatch(textsOf(tree).join(''), /deepseek\/deepseek-v4\.1-flash/u)
 })
@@ -334,7 +334,7 @@ test('the row shows the emoji, the channel and account, then the full model id',
   assert.match(texts, /deepseek\/deepseek-v4\.1-flash/u)
   assert.equal(texts, '⚡OpenDesign / ACP-003 · deepseek/deepseek-v4.1-flash')
   assert.equal(findElement(tree, 'svg'), undefined)
-  assert.equal(tree.props.title, 'deepseek/deepseek-v4.1-flash · OpenDesign · ACP-003')
+  assert.match(tree.props.title, /^deepseek\/deepseek-v4\.1-flash · OpenDesign · ACP-003 · build /u)
 })
 
 test('a redacted route shows the model without a target', () => {
@@ -349,7 +349,7 @@ test('a redacted route shows the model without a target', () => {
     useChat: selector => selector({ nodes: { values: () => [{ kind: 'portara-route', data: payload }] } }),
   })
   assert.equal(textsOf(tree).join(''), '⚡deepseek/deepseek-v4.1-flash')
-  assert.equal(tree.props.title, 'deepseek/deepseek-v4.1-flash')
+  assert.match(tree.props.title, /^deepseek\/deepseek-v4\.1-flash · build /u)
 })
 
 test('the status label reads the newest Turn card', () => {
@@ -388,7 +388,7 @@ test('the status label stays silent without a route and falls back to the alias'
     useChat: selector => selector({ nodes: { values: () => [{ kind: 'portara-route', data: redacted }] } }),
   })
   assert.match(textsOf(tree).join(''), /deepseek-flash/u)
-  assert.equal(tree.props.title, 'balance/deepseek-flash')
+  assert.match(tree.props.title, /^balance\/deepseek-flash · build /u)
 })
 
 test('the definition matches only its own record type and keys one card per Turn', () => {
