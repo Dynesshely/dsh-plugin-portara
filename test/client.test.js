@@ -460,7 +460,8 @@ test('the host-provided Turn opening wins over a re-derived anchor', () => {
     start: { event: { seq: 99 }, role: 'start', location: stepLocation },
     matches: [{ event: { seq: 99 }, role: 'start', location: stepLocation }],
   })
-  assert.equal(node.anchorSeq, 90)
+  // Half a step past the prompt: after the user bubble, before the process.
+  assert.equal(node.anchorSeq, 90.5)
   assert.deepEqual(node.location, { kind: 'turn', turn: stepLocation.turn })
 })
 

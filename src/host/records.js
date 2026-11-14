@@ -104,10 +104,12 @@ export function sessionModuleCandidates(ctx) {
  * Read the Session placement of the newest step boundary without touching the
  * (private) event log: `eventAt()` is the supported point read.
  *
- * Besides the coordinates, the walk records the Turn's opening sequence — the
- * first `step/start` of that Turn (falling back to its `turn/start`). Sending it
- * with the record lets the browser anchor the card deterministically instead of
- * re-deriving Turn boundaries from whatever history window it happens to hold.
+ * Besides the coordinates, the walk records the Turn's opening sequence: the
+ * first `user/message` of that Turn (falling back to its first `step/start`,
+ * then `turn/start`). A Turn may log `step/start` before the prompt is admitted,
+ * so the user message is the only boundary that reliably sits after the bubble.
+ * Sending it with the record lets the browser anchor the card deterministically
+ * instead of re-deriving Turn boundaries from whatever window it holds.
  *
  * @param {object} session - Session instance.
  * @returns {{ turn?: number, step?: number, anchorSeq?: number }} placement, empty when unknown.
@@ -147,7 +149,27 @@ export function sessionCoordinates(session) {
     }
   }
   if (turn === undefined) return {}
-  const anchorSeq = firstStepSeq ?? turnStartSeq
+  // The prompt is the boundary that sits after the user's bubble; a Turn can log
+  // step/start before the prompt is admitted, so prefer the first user message.
+  let userSeq
+  if (turnStartSeq !== undefined) {
+    const limit = Math.min(end, turnStartSeq + 2_000)
+    for (let seq = turnStartSeq + 1; seq < limit; seq += 1) {
+      let event
+      try {
+        event = session.eventAt(seq)
+      } catch {
+        break
+      }
+      if (event === undefined || event === null) continue
+      if (event.type === 'turn/start' || event.type === 'turn/end') break
+      if (event.type === 'user/message') {
+        userSeq = seq
+        break
+      }
+    }
+  }
+  const anchorSeq = userSeq ?? firstStepSeq ?? turnStartSeq
   return {
     turn,
     ...(step === undefined ? {} : { step }),

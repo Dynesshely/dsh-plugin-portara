@@ -26,7 +26,7 @@ window.__ModuleLoader__.load({
     /** Durable record type written by the host half. */
     const RECORD_TYPE = 'plugin:portara/route'
     /** Visible build stamp: tells a stale page from a fresh one at a glance. */
-    const BUILD = '2026-11-15T04:10Z-host-anchor'
+    const BUILD = '2026-11-15T04:35Z-user-anchor'
     /** Attribute marking the status-row label, used to scope the spacing rule. */
     const STATUS_ATTR = 'data-portara-route-status'
     /**
@@ -427,9 +427,12 @@ window.__ModuleLoader__.load({
         // its own Turn. Anchor at the opening of the Turn's assistant content.
         const latest = context.matches.length > 0 ? context.matches[context.matches.length - 1] : start
         const placement = turnOpeningOf(latest.location) ?? turnOpeningOf(start.location)
-        // The Host stamps the Turn's opening when it writes the record; prefer it
-        // over anything re-derived from the browser's loaded history window.
-        const anchorSeq = data.anchorSeq ?? placement?.anchorSeq ?? latest.event.seq
+        // The Host stamps the Turn's prompt sequence when it writes the record;
+        // the half-step keeps the card after that user bubble and after the
+        // completion control, yet before the first process row.
+        const anchorSeq = data.anchorSeq !== undefined
+          ? data.anchorSeq + 0.5
+          : placement?.anchorSeq ?? latest.event.seq
         return {
           key: context.key,
           kind: KIND,

@@ -63,9 +63,11 @@ Dedupe still runs on the observed routing facts, so a repeated query never stack
 
 A record is written when a model call settles, inside the Turn's Step. Anchoring the node at the record
 would put the card near the reply; anchoring at `turn/start` would put it above the user's prompt. The Host
-therefore stamps the record with the Turn's opening sequence — its first `step/start`, falling back to
-`turn/start` — and the client anchors on that stored value, with the node at the `turn` group-tree
-position. The card renders after the prompt and the completion header, before the first process row, stays
+therefore stamps the record with the Turn's prompt sequence — the first `user/message` of the Turn (falling
+back to its first `step/start`, then `turn/start`, because a Turn can log a step before the prompt is
+admitted) — and the client anchors half a step past it, with the node at the `turn` group-tree position.
+Half a step is enough to sort after the user bubble and after the synthetic completion control while staying
+before the first process row. The card renders after the prompt and the completion header, before the first process row, stays
 visible when the process is folded, and never depends on which history window the browser currently holds.
 Because each Turn owns a separate Context, paging in older history can only add older cards — it cannot move
 or lose an existing one.
