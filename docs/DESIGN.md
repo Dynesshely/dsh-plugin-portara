@@ -93,6 +93,15 @@ minutes, so a conversation that has been idle reports empty — the command fall
 `plugin:portara/route` record in the session log and labels it as the last recorded route. The verb grammar
 and the formatting are pure functions in `src/host/command.js`, so both are unit-tested without a gateway.
 
+### 8. A little breathing room after the route line
+
+The host's flow gap after a Turn's action row is 4px, which is fine for a row of icons but cramped once that
+row carries text. The plugin therefore installs one stylesheet for its lifetime with a single rule keyed on
+`[data-chat-flow-kind="turn-tail"]:has([data-portara-route-status])`: it adds 8px of padding below the tail
+only on rows that actually rendered the label, leaves every other row and every host control untouched, and
+is tunable through `--portara-status-row-gap`. The style element is owned by the plugin's effect, so
+unloading the plugin removes it.
+
 ## Rejected alternatives
 
 - **Appending a real event type** — makes the session unreadable on load (see 1).

@@ -25,6 +25,15 @@ window.__ModuleLoader__.load({
     const KIND = 'portara-route'
     /** Durable record type written by the host half. */
     const RECORD_TYPE = 'plugin:portara/route'
+    /** Attribute marking the status-row label, used to scope the spacing rule. */
+    const STATUS_ATTR = 'data-portara-route-status'
+    /**
+     * The host's flow gap after a Turn's action row is 4px, which reads cramped
+     * once that row carries the route line. The rule only applies to a Turn tail
+     * that actually rendered our label, adds room below it without touching the
+     * row, and stays overridable through one CSS variable.
+     */
+    const SPACING_CSS = `[data-chat-flow-kind="turn-tail"]:has([${STATUS_ATTR}]){padding-bottom:var(--portara-status-row-gap,8px)}`
 
     /** Card copy, duplicated from `locale/*.json` because the JSON files carry display metadata. */
     const DICTS = {
@@ -309,6 +318,7 @@ window.__ModuleLoader__.load({
           .filter(value => typeof value === 'string' && value !== '')
           .join(' · ')
         return h('span', {
+          [STATUS_ATTR]: '',
           style: {
             order: 1,
             display: 'inline-flex',
@@ -363,6 +373,14 @@ window.__ModuleLoader__.load({
     return {
       inject: ['slots', 'uiConversation', 'locale'],
       apply(ctx) {
+        ctx.effect(() => {
+          if (typeof document === 'undefined' || document.head === null) return () => {}
+          const style = document.createElement('style')
+          style.setAttribute('data-portara-route-style', '')
+          style.textContent = SPACING_CSS
+          document.head.appendChild(style)
+          return () => { style.remove() }
+        }, 'dsh-plugin-portara: status-row spacing')
         ctx.effect(() => ctx.locale.register(NS, 'en', DICTS.en), 'dsh-plugin-portara: English copy')
         ctx.effect(() => ctx.locale.register(NS, 'zh', DICTS.zh), 'dsh-plugin-portara: Chinese copy')
         ctx.effect(() => ctx.uiConversation.events.register(definition), 'dsh-plugin-portara: routing row definition')
@@ -377,7 +395,10 @@ window.__ModuleLoader__.load({
         }, createModelLabel(ctx)))
       },
       // Pure helpers for unit tests; the module loader ignores extra keys.
-      __test: { readPayload, summaryOf, historyRows, formatTime, routedModelOf, routeTargetOf, DICTS, KIND, RECORD_TYPE },
+      __test: {
+        readPayload, summaryOf, historyRows, formatTime, routedModelOf, routeTargetOf,
+        SPACING_CSS, STATUS_ATTR, DICTS, KIND, RECORD_TYPE,
+      },
     }
   },
 })

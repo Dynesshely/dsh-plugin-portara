@@ -45,7 +45,9 @@ const moduleNamespace = loaded.factory(name => {
   if (name === 'react') return fakeReact()
   throw new Error(`unexpected client module: ${name}`)
 })
-const { readPayload, summaryOf, historyRows, formatTime, DICTS } = moduleNamespace.__test
+const {
+  readPayload, summaryOf, historyRows, formatTime, DICTS, SPACING_CSS, STATUS_ATTR,
+} = moduleNamespace.__test
 
 /** Translator over the shipped English copy. */
 const t = (key, params = {}) => {
@@ -88,8 +90,9 @@ test('every registration is owned by a disposer', () => {
     return () => { if (typeof dispose === 'function') dispose() }
   }
   moduleNamespace.apply(ctx)
-  // Two locale dictionaries and the Conversation Definition; the slot injection owns its registration.
-  assert.equal(disposals.length, 3)
+  // The spacing stylesheet, two locale dictionaries, and the Conversation Definition;
+  // the slot injection owns its registration.
+  assert.equal(disposals.length, 4)
   for (const dispose of disposals) {
     assert.equal(typeof dispose, 'function')
     assert.doesNotThrow(() => dispose())
@@ -449,3 +452,59 @@ test('expanding the row lists every failover attempt', () => {
 function hookIntact() {
   assert.ok(hookSlots.length > 0)
 }
+
+test('the status-row label is marked and its spacing rule is scoped to that mark', () => {
+  assert.match(SPACING_CSS, /\[data-chat-flow-kind="turn-tail"\]/u)
+  assert.match(SPACING_CSS, /:has\(\[data-portara-route-status\]\)/u)
+  assert.match(SPACING_CSS, /--portara-status-row-gap/u)
+  const { ctx, registrations } = createClientContext()
+  moduleNamespace.apply(ctx)
+  const label = registrations.slots.find(slot => slot.options.id === 'portara-route-model')
+  const tree = label.component({
+    useChat: selector => selector({
+      nodes: { values: () => [{ kind: 'portara-route', data: readPayload(SWITCHED) }] },
+    }),
+  })
+  assert.equal(tree.props[STATUS_ATTR], '')
+})
+
+test('the spacing stylesheet is installed once and removed on dispose', () => {
+  const appended = []
+  const removed = []
+  const previousDocument = globalThis.document
+  globalThis.document = {
+    head: {
+      appendChild(node) {
+        appended.push(node)
+      },
+    },
+    createElement() {
+      return {
+        attributes: {},
+        setAttribute(name, value) { this.attributes[name] = value },
+        remove() { removed.push(this) },
+        textContent: '',
+      }
+    },
+  }
+  const disposals = []
+  const { ctx } = createClientContext()
+  const originalEffect = ctx.effect
+  ctx.effect = (setup) => {
+    const dispose = setup()
+    disposals.push(dispose)
+    return () => { if (typeof dispose === 'function') dispose() }
+  }
+  try {
+    moduleNamespace.apply(ctx)
+  } finally {
+    ctx.effect = originalEffect
+    globalThis.document = previousDocument
+  }
+  assert.equal(appended.length, 1)
+  assert.equal(appended[0].attributes['data-portara-route-style'], '')
+  assert.equal(appended[0].textContent, SPACING_CSS)
+  assert.equal(disposals.length, 4)
+  disposals[0]()
+  assert.equal(removed.length, 1)
+})
