@@ -275,7 +275,7 @@ function createClientContext() {
   return { ctx, registrations: { definitions, slots, registered } }
 }
 
-test('apply registers one Chat definition and one keyed renderer', () => {
+test('apply registers one Chat definition, one keyed renderer, and the status label', () => {
   const { ctx, registrations } = createClientContext()
   moduleNamespace.apply(ctx)
   assert.equal(registrations.definitions.length, 1)
@@ -283,14 +283,50 @@ test('apply registers one Chat definition and one keyed renderer', () => {
   assert.equal(definition.kind, 'portara-route')
   assert.equal(definition.target, 'chat')
   assert.equal(typeof definition.buildViewNode, 'function')
-  assert.equal(registrations.slots.length, 1)
+  assert.equal(registrations.slots.length, 2)
   assert.deepEqual(registrations.slots[0].options, {
     name: 'conversation.chat.node',
     key: 'portara-route',
   })
+  assert.deepEqual(registrations.slots[1].options, {
+    name: 'conversation.chat.assistant-actions',
+    id: 'portara-route-model',
+    order: 50,
+  })
   assert.equal(typeof registrations.slots[0].component, 'function')
+  assert.equal(typeof registrations.slots[1].component, 'function')
   assert.ok(registrations.registered.has('portara-route:en'))
   assert.ok(registrations.registered.has('portara-route:zh'))
+})
+
+test('the status row appends the routed model after the host-owned clock', () => {
+  const { ctx, registrations } = createClientContext()
+  moduleNamespace.apply(ctx)
+  const label = registrations.slots.find(slot => slot.options.id === 'portara-route-model')
+  const payload = readPayload(SWITCHED)
+  const tree = label.component({
+    useChat: selector => selector({ nodes: { values: () => [{ kind: 'portara-route', data: payload }] } }),
+  })
+  assert.equal(tree.type, 'span')
+  assert.equal(tree.props.style.order, 1)
+  assert.equal(tree.props.title, 'OpenDesign / ACP-003')
+  assert.match(textsOf(tree).join(''), /deepseek-v4\.1-flash/u)
+})
+
+test('the status label stays silent without a route and falls back to the alias', () => {
+  const { ctx, registrations } = createClientContext()
+  moduleNamespace.apply(ctx)
+  const label = registrations.slots.find(slot => slot.options.id === 'portara-route-model')
+  assert.equal(label.component({ useChat: selector => selector({ nodes: { values: () => [] } }) }), null)
+  const redacted = readPayload({
+    ...SWITCHED,
+    route: { alias: 'balance/deepseek-flash', channel: null, account: null, upstreamModel: null },
+  })
+  const tree = label.component({
+    useChat: selector => selector({ nodes: { values: () => [{ kind: 'portara-route', data: redacted }] } }),
+  })
+  assert.match(textsOf(tree).join(''), /balance\/deepseek-flash/u)
+  assert.equal(tree.props.title, undefined)
 })
 
 test('the definition matches only its own record type and keys by session', () => {

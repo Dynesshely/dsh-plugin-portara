@@ -29,7 +29,9 @@ context is invisible from inside the conversation. This bundle puts it where the
 ```
 
 One row per gateway session, at the same level as a tool-call card. No failover means a one-line summary; a
-failover expands into the attempts that produced the answer:
+failover expands into the attempts that produced the answer. The routed model is also appended to the end
+of each turn's status row, so the last line of every reply carries `⚡ <upstream model>` without opening
+anything. And `/portara route` prints the same facts once, on demand, without spending a model call.
 
 ```text
 Attempt 1 · CommandCode / ACP-002 · quota cooldown · HTTP 429 · 00:22:31
@@ -47,6 +49,8 @@ The bundle has two halves that share one package and one profile row — no kern
 | Host | `appendPluginRecord()` | writes a `plugin:portara/route` record — an ignorable, log-only event that older readers retain and skip |
 | Client | `uiConversation.events.register()` | one Chat row per gateway session key; later records update that row instead of stacking |
 | Client | `conversation.chat.node` slot | the collapsible row, localized in English and Chinese, styled with host theme tokens |
+| Client | `conversation.chat.assistant-actions` slot | appends the routed model to the turn status row via one flex item ordered after the host-owned clock |
+| Host | `/portara` command | `route` prints the session's current route and refreshes the card; the handler answers the UI directly, so no model call is spent |
 
 ### Behaviour guarantees
 
@@ -116,8 +120,10 @@ gateway. Credentials resolve through the Host credential service, falling back t
 
 1. Send one message over the gateway route.
 2. A `⚡ Routed to …` row appears next to the reply; with a failover it is collapsible.
-3. The session log holds a `plugin:portara/route` event with `ignorable: true`.
-4. Turn disclosure off and send again: no record, no error.
+3. The end of the turn status row shows `⚡ <upstream model>`.
+4. Run `/portara route` — the command prints channel, account, upstream model, and the failover history.
+5. The session log holds a `plugin:portara/route` event with `ignorable: true`.
+6. Turn disclosure off and send again: no record, no error, and the command explains why.
 
 ## How to Contribute
 
@@ -210,7 +216,8 @@ dsh-plugin-portara/
 ├── src/
 │   ├── payload.js           # durable payload normalization and dedupe signature
 │   └── host/
-│       ├── index.js         # listener wiring, polling, dedupe
+│       ├── index.js         # listener wiring, polling, dedupe, /portara registration
+│       ├── command.js       # /portara verb grammar and plain-text route formatting
 │       ├── gateway.js       # timeout-bounded, silent /route-info client
 │       ├── provider.js      # provider discovery, credential resolution, header decision
 │       └── records.js       # Host Session module resolution and plugin-record append
@@ -244,7 +251,7 @@ dsh-plugin-portara/
 [dsh-badge]: https://img.shields.io/badge/dsh-0.2.2--alpha.2-6f42c1?style=flat-square
 [node-badge]: https://img.shields.io/badge/node-%3E%3D20-339933?style=flat-square&logo=node.js&logoColor=white
 [platform-badge]: https://img.shields.io/badge/platform-web-2ea44f?style=flat-square
-[tests-badge]: https://img.shields.io/badge/tests-50%20passing-brightgreen?style=flat-square
+[tests-badge]: https://img.shields.io/badge/tests-55%20passing-brightgreen?style=flat-square
 [license-badge]: https://img.shields.io/github/license/Dynesshely/dsh-plugin-portara?style=flat-square
 [commit-badge]: https://img.shields.io/github/last-commit/Dynesshely/dsh-plugin-portara?style=flat-square
 [stars-badge]: https://img.shields.io/github/stars/Dynesshely/dsh-plugin-portara?style=flat-square

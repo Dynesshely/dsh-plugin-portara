@@ -69,6 +69,25 @@ theme tokens only, so light/dark switching works without literal colors. The row
 plus an optional disclosure list of failover attempts; nothing is written outside the component, and a
 malformed payload renders nothing rather than crashing the slot.
 
+### 6. The status-row label rides the shared action row
+
+The end of a turn's status row (copy, feedback, usage, clock) is owned by `ui-chat`'s
+`MessageIconActions`. Its only plugin extension point with the right data access is the
+`conversation.chat.assistant-actions` list, whose entries render as direct flex children of that row. The
+label therefore registers one entry whose root element sets a larger CSS `order`: flex places it after the
+host-owned clock without restyling or moving any host control, and it disappears when no routing record
+exists. The routed model is read from the plugin's own Chat node through the `useChat` snapshot selector,
+so the label always matches the card above it.
+
+### 7. `/portara route` answers the UI, not the model
+
+A command handler returns `CommandResult` text that the dispatching composer renders directly. That makes
+`/portara route` a zero-token query: it bypasses the model, resolves the confirmed gateways (running a
+discovery pass first if the command beats the first model call), queries `/v1/route-info` with the session
+id, prints channel/account/upstream model plus failover history, and refreshes the card through the normal
+dedupe path. The verb grammar and the formatting are pure functions in `src/host/command.js`, so both are
+unit-tested without a gateway.
+
 ## Rejected alternatives
 
 - **Appending a real event type** — makes the session unreadable on load (see 1).

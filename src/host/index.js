@@ -18,6 +18,7 @@
  */
 
 import { RECORD_TYPE, normalizeRouteInfo, recordSignature } from '../payload.js'
+import { COMMAND_NAME, COMMAND_USAGE, ROUTE_VERB, formatRouteInfo, parseCommandInput } from './command.js'
 import { fetchRouteInfo, routeInfoUrl } from './gateway.js'
 import { discoverGateways, providerProfiles, resolveCredential, sessionHeaderValue } from './provider.js'
 import { createRecordWriter, sessionCoordinates } from './records.js'
@@ -271,6 +272,49 @@ export function apply(ctx, config = {}) {
     } catch { /* silent by contract */ }
   }
 
+  /**
+   * Every confirmed gateway, running a discovery pass first when none is known
+   * yet (the command can arrive before the first model call).
+   * @returns {Promise<string[]>} normalized base URLs.
+   */
+  async function candidateGateways() {
+    if (gateways.size === 0) {
+      try {
+        const found = await discoverGateways(ctx, { signal: lifetime.signal, timeoutMs: options.timeoutMs, logger })
+        for (const [baseURL, apiKey] of found) gateways.set(baseURL, apiKey)
+      } catch { /* silent by contract */ }
+    }
+    return [...gateways.keys()]
+  }
+
+  /**
+   * Query one session's route across every confirmed gateway.
+   * @param {string} sessionId - harness session id, also the gateway session key.
+   * @returns {Promise<unknown | undefined>} the first answer carrying a route,
+   *   otherwise the first answer of any shape.
+   */
+  async function readRouteInfo(sessionId) {
+    let fallback
+    for (const baseURL of await candidateGateways()) {
+      if (lifetime.signal.aborted) break
+      try {
+        const apiKey = await gatewayKey(baseURL)
+        if (apiKey === undefined) continue
+        const raw = await fetchRouteInfo({
+          baseURL,
+          apiKey,
+          sessionKey: sessionId,
+          timeoutMs: options.timeoutMs,
+          signal: lifetime.signal,
+        })
+        if (raw === undefined) continue
+        fallback ??= raw
+        if (normalizeRouteInfo(raw) !== undefined) return raw
+      } catch { /* try the next gateway */ }
+    }
+    return fallback
+  }
+
   ctx.effect(() => () => {
     lifetime.abort(new Error('dsh-plugin-portara was unloaded'))
     signatures.clear()
@@ -308,6 +352,28 @@ export function apply(ctx, config = {}) {
       return next()
     })
   }
+
+  ctx.inject(['commands'], child => {
+    child.effect(() => child.commands.register({
+      name: COMMAND_NAME,
+      description: 'Print this session’s Portara gateway route: channel, account, upstream model',
+      input: { hint: ROUTE_VERB },
+      handler: async (invocation) => {
+        const parsed = parseCommandInput(invocation?.rawInput)
+        if (parsed.kind === 'help') return { kind: 'success', text: COMMAND_USAGE }
+        if (parsed.kind === 'unknown') {
+          return { kind: 'error', text: `Unknown verb "${parsed.verb}". ${COMMAND_USAGE}` }
+        }
+        const sessionId = String(invocation.agent.session.id)
+        const raw = await readRouteInfo(sessionId)
+        if (raw === undefined) {
+          return { kind: 'success', text: 'Portara: no gateway answered this profile. Check the provider configuration.' }
+        }
+        if (normalizeRouteInfo(raw) !== undefined) void commit(sessionId, raw)
+        return { kind: 'success', text: formatRouteInfo(raw) }
+      },
+    }), 'portara-route: /portara command')
+  })
 
   ctx.on('llm/stream', (request, next) => {
     if (!options.enabled) return next()

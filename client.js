@@ -117,6 +117,18 @@ window.__ModuleLoader__.load({
     }
 
     /**
+     * Read the model name the gateway actually served.
+     * @param {object | undefined} payload - narrowed payload.
+     * @returns {string | undefined} upstream model, falling back to the alias.
+     */
+    function routedModelOf(payload) {
+      if (payload === undefined || payload === null || typeof payload !== 'object') return undefined
+      const route = payload.route
+      if (route === null || typeof route !== 'object') return undefined
+      return route.upstreamModel ?? route.alias ?? undefined
+    }
+
+    /**
      * Render one history timestamp in the reader's clock.
      * @param {string} at - ISO timestamp.
      * @returns {string} local time, or the raw value when unparsable.
@@ -257,6 +269,53 @@ window.__ModuleLoader__.load({
       return PortaraRouteRow
     }
 
+    /**
+     * Build the routed-model label appended to a Turn's status row.
+     *
+     * The label is a direct flex child of the shared action row, so the inline
+     * `order` places it after the host-owned clock — the last item on the line
+     * — without moving or restyling any host control.
+     *
+     * @param {object} ctx - Client plugin context.
+     * @returns {Function} React component for the assistant-actions seat.
+     */
+    function createModelLabel(ctx) {
+      function PortaraModelLabel({ useChat }) {
+        const routed = useChat(snapshot => {
+          const nodes = snapshot?.nodes
+          if (nodes === undefined || typeof nodes.values !== 'function') return undefined
+          for (const node of nodes.values()) {
+            if (node !== null && typeof node === 'object' && node.kind === KIND) return node.data
+          }
+          return undefined
+        })
+        const model = routedModelOf(routed)
+        if (model === undefined) return null
+        const channel = routed.route?.channel
+        const account = routed.route?.account
+        const hint = [channel, account]
+          .filter(value => typeof value === 'string' && value !== '')
+          .join(' / ')
+        return h('span', {
+          style: {
+            order: 1,
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '4px',
+            marginLeft: '8px',
+            fontSize: 'calc(var(--dsh-content-font-size-secondary, 13px) - 1px)',
+            color: 'var(--dsw-alias-label-tertiary)',
+            whiteSpace: 'nowrap',
+          },
+          ...(hint === '' ? {} : { title: hint }),
+        }, [
+          h('span', { key: 'icon', 'aria-hidden': true }, '⚡'),
+          h('span', { key: 'model' }, model),
+        ])
+      }
+      return PortaraModelLabel
+    }
+
     /** Conversation Definition: one row per gateway session key. */
     const definition = {
       kind: KIND,
@@ -298,9 +357,14 @@ window.__ModuleLoader__.load({
           name: 'conversation.chat.node',
           key: KIND,
         }, createRow(ctx)))
+        ctx.slots.inject('conversation.chat.assistant-actions', () => ctx.slots.register({
+          name: 'conversation.chat.assistant-actions',
+          id: 'portara-route-model',
+          order: 50,
+        }, createModelLabel(ctx)))
       },
       // Pure helpers for unit tests; the module loader ignores extra keys.
-      __test: { readPayload, summaryOf, historyRows, formatTime, DICTS, KIND, RECORD_TYPE },
+      __test: { readPayload, summaryOf, historyRows, formatTime, routedModelOf, DICTS, KIND, RECORD_TYPE },
     }
   },
 })

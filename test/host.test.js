@@ -69,6 +69,7 @@ function makeProfileDir() {
  */
 function fakeContext(facts) {
   const listeners = new Map()
+  const commands = []
   const agents = new Map()
   const ctx = {
     baseUrl: pathToFileURL(join(facts.profileDir, 'cordis.yml')).href,
@@ -96,7 +97,15 @@ function fakeContext(facts) {
       return undefined
     },
     inject(_services, callback) {
-      callback()
+      callback({
+        effect: (setup) => { setup(); return () => {} },
+        commands: {
+          register(definition) {
+            commands.push(definition)
+            return () => {}
+          },
+        },
+      })
       return () => {}
     },
     effect(setup) {
@@ -113,6 +122,7 @@ function fakeContext(facts) {
   return {
     ctx,
     agents,
+    commands,
     /** Dispatch the `llm/stream` waterfall for one fake call. */
     async runStream(request, chunks) {
       const handler = listeners.get('llm/stream')?.[0]
@@ -285,5 +295,120 @@ test('auxiliary calls, missing sessions, and unreachable gateways write nothing'
     assert.deepEqual(recordsOf(session), [])
   } finally {
     await new Promise(resolve => server.close(() => resolve()))
+  }
+})
+
+/**
+ * Start one local gateway that answers route-info with fixed facts.
+ * @param {object} body - response payload.
+ * @param {Array<object>} [seen] - collector for request headers.
+ * @returns {Promise<{ baseURL: string, close: () => Promise<void> }>} server facts.
+ */
+async function routeGateway(body, seen = []) {
+  const server = createServer((request, response) => {
+    seen.push({ url: request.url, session: request.headers['x-portara-client-session'] })
+    if (request.url !== '/v1/route-info' || request.headers.authorization !== 'Bearer secret') {
+      response.writeHead(401)
+      response.end()
+      return
+    }
+    response.writeHead(200, { 'content-type': 'application/json' })
+    response.end(JSON.stringify(body))
+  })
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
+  const { port } = server.address()
+  return {
+    baseURL: `http://127.0.0.1:${port}/v1`,
+    close: () => new Promise(resolve => server.close(() => resolve())),
+  }
+}
+
+test('the /portara command registers with the route predicate', { skip }, async () => {
+  const harness = fakeContext({ profileDir: makeProfileDir(), baseURL: 'http://127.0.0.1:1/v1', apiKeyEnv: 'K', apiKey: 'k' })
+  apply(harness.ctx, { timeoutMs: 200, pollIntervalMs: 0 })
+  const definition = harness.commands[0]
+  assert.equal(definition.name, 'portara')
+  assert.deepEqual(definition.input, { hint: 'route' })
+  assert.match(definition.description, /gateway route/u)
+})
+
+test('/portara route prints channel, account, and model, then refreshes the card', { skip }, async () => {
+  const { Session } = await loadSessionModule()
+  const harness = fakeContext({ profileDir: makeProfileDir(), baseURL: 'http://127.0.0.1:1/v1', apiKeyEnv: 'K', apiKey: 'secret' })
+  const seen = []
+  const gateway = await routeGateway({
+    object: 'route.info',
+    sessionKey: 'k',
+    updatedAt: '2026-11-14T14:06:48.010Z',
+    route: {
+      alias: 'balance/deepseek-flash',
+      channel: 'OpenDesign',
+      account: 'ACP-003',
+      upstreamModel: 'deepseek-v4.1-flash',
+    },
+    history: [{
+      attempt: 1, channel: 'CommandCode', account: 'ACP-002',
+      outcome: 'quota_cooldown', statusCode: 429, reason: 'switched', at: '2026-11-14T14:06:31.000Z',
+    }],
+  }, seen)
+  // Point the profile at the live gateway for this test.
+  const originalGet = harness.ctx.get.bind(harness.ctx)
+  harness.ctx.get = key => (key === 'loader'
+    ? { resolve: () => ({ options: { config: { providers: { gw: { baseURL: gateway.baseURL, apiKeyEnv: 'K' } } } } }) }
+    : originalGet(key))
+  try {
+    apply(harness.ctx, { timeoutMs: 500, pollIntervalMs: 0 })
+    const session = Session.create('portara-command-session')
+    harness.agents.set('portara-command-session', { session })
+    const definition = harness.commands[0]
+    const result = await definition.handler({ rawInput: ' route', agent: { session } })
+    assert.equal(result.kind, 'success')
+    assert.match(result.text, /Routed to OpenDesign \/ ACP-003 · deepseek-v4\.1-flash/u)
+    assert.match(result.text, /alias balance\/deepseek-flash/u)
+    assert.match(result.text, /1\. CommandCode \/ ACP-002 · quota_cooldown · HTTP 429/u)
+    await until(() => recordsOf(session).length === 1)
+    const record = recordsOf(session)[0]
+    assert.equal(record.data.route.channel, 'OpenDesign')
+    assert.equal(seen.at(-1).session, 'portara-command-session')
+  } finally {
+    await gateway.close()
+  }
+})
+
+test('/portara answers help, unknown verbs, and an answering gateway without a route', { skip }, async () => {
+  const { Session } = await loadSessionModule()
+  const harness = fakeContext({ profileDir: makeProfileDir(), baseURL: 'http://127.0.0.1:1/v1', apiKeyEnv: 'K', apiKey: 'secret' })
+  const gateway = await routeGateway({
+    object: 'route.info',
+    sessionKey: 'k',
+    updatedAt: null,
+    route: { alias: null, channel: null, account: null, upstreamModel: null },
+    history: [],
+  })
+  const originalGet = harness.ctx.get.bind(harness.ctx)
+  harness.ctx.get = key => (key === 'loader'
+    ? { resolve: () => ({ options: { config: { providers: { gw: { baseURL: gateway.baseURL, apiKeyEnv: 'K' } } } } }) }
+    : originalGet(key))
+  try {
+    apply(harness.ctx, { timeoutMs: 500, pollIntervalMs: 0 })
+    const session = Session.create('portara-command-quiet')
+    harness.agents.set('portara-command-quiet', { session })
+    const definition = harness.commands[0]
+
+    const help = await definition.handler({ rawInput: '', agent: { session } })
+    assert.equal(help.kind, 'success')
+    assert.match(help.text, /Usage: \/portara route/u)
+
+    const unknown = await definition.handler({ rawInput: 'nope', agent: { session } })
+    assert.equal(unknown.kind, 'error')
+    assert.match(unknown.text, /Unknown verb "nope"/u)
+
+    const empty = await definition.handler({ rawInput: 'route', agent: { session } })
+    assert.equal(empty.kind, 'success')
+    assert.match(empty.text, /answered without routing information/u)
+    assert.match(empty.text, /exposeRoutingInfo/u)
+    assert.deepEqual(recordsOf(session), [])
+  } finally {
+    await gateway.close()
   }
 })

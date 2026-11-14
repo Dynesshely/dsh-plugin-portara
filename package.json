@@ -39,7 +39,7 @@
   },
   "scripts": {
     "test": "node --test test/*.test.js",
-    "check": "node --check index.js && node --check client.js && node --check src/payload.js && node --check src/host/index.js && node --check src/host/gateway.js && node --check src/host/provider.js && node --check src/host/records.js"
+    "check": "node --check index.js && node --check client.js && node --check src/payload.js && node --check src/host/index.js && node --check src/host/gateway.js && node --check src/host/provider.js && node --check src/host/records.js && node --check src/host/command.js"
   },
   "engines": {
     "node": ">=20"
