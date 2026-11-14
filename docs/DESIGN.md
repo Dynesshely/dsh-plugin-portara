@@ -59,12 +59,14 @@ Each Turn that observed a route gets its own card: the match id is
 `<gateway session key>#<turn>`, so records from one Turn update one row and later Turns get their own.
 Dedupe still runs on the observed routing facts, so a repeated query never stacks a second card.
 
-### 5. The card sits at the Turn's opening
+### 5. The card sits at the opening of the Turn's assistant content
 
-A record is written when a model call settles, which is inside the Turn's step. Anchoring the node at the
-record would place the card near the reply; the plugin instead resolves the owning Turn's loaded
-`turn/start` and anchors there, so every round begins with its route. Because each Turn owns a separate
-Context, paging in older history can only add older cards — it cannot re-anchor or lose an existing one.
+A record is written when a model call settles, inside the Turn's Step. Anchoring the node at the record
+would put the card near the reply; anchoring at `turn/start` would put it *above the user's prompt*. The
+plugin instead anchors at the Turn's first loaded `step/start` — the earliest event after the round's input
+is claimed — and gives the node the `turn` group-tree position. The card therefore renders between the
+prompt and the process disclosure, stays visible when the process is folded, and, because each Turn owns a
+separate Context, paging in older history can only add older cards — it cannot move or lose an existing one.
 
 ### 6. Copy and styling
 
@@ -74,20 +76,7 @@ theme tokens only, so light/dark switching works without literal colors. The row
 plus an optional disclosure list of failover attempts; nothing is written outside the component, and a
 malformed payload renders nothing rather than crashing the slot.
 
-### 7. The status-row label rides the shared action row
-
-The end of a turn's status row (copy, feedback, usage, clock) is owned by `ui-chat`'s
-`MessageIconActions`. Its only plugin extension point with the right data access is the
-`conversation.chat.assistant-actions` list, whose entries render as direct flex children of that row. The
-label therefore registers one entry whose root element sets a larger CSS `order`: flex places it after the
-host-owned clock without restyling or moving any host control, and it disappears when no routing record
-exists. The routed model is read from the plugin's own Chat node through the `useChat` snapshot selector,
-so the label always matches the card above it. The label reads
-`⚡ <channel> / <account> · <full model id>`: the emoji matches the Chat card's mark, and each disclosed part
-is shown as-is (a withheld channel or account simply drops out) rather than shortened, because the point of
-the line is to answer "which model, where" at a glance.
-
-### 8. `/portara route` answers the UI, not the model
+### 7. `/portara route` answers the UI, not the model
 
 A command handler returns `CommandResult` text that the dispatching composer renders directly. That makes
 `/portara route` a zero-token query: it bypasses the model, resolves the confirmed gateways (running a
@@ -97,15 +86,6 @@ dedupe path. When the live query has nothing — the gateway keeps its current-r
 minutes, so a conversation that has been idle reports empty — the command falls back to the newest
 `plugin:portara/route` record in the session log and labels it as the last recorded route. The verb grammar
 and the formatting are pure functions in `src/host/command.js`, so both are unit-tested without a gateway.
-
-### 9. A little breathing room after the route line
-
-The host's flow gap after a Turn's action row is 4px, which is fine for a row of icons but cramped once that
-row carries text. The plugin therefore installs one stylesheet for its lifetime with a single rule keyed on
-`[data-chat-flow-kind="turn-tail"]:has([data-portara-route-status])`: it adds 10px of padding below the tail
-only on rows that actually rendered the label, leaves every other row and every host control untouched, and
-is tunable through `--portara-status-row-gap`. The style element is owned by the plugin's effect, so
-unloading the plugin removes it.
 
 ## Rejected alternatives
 

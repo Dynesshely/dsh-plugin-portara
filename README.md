@@ -29,13 +29,11 @@ context is invisible from inside the conversation. This bundle puts it where the
 ⚡ Switched to OpenDesign / ACP-003 (attempt 2) · deepseek-v4.1-flash   ▸
 ```
 
-One row per conversation Turn, rendered at that Turn's opening at the same level as a tool-call card. No
-failover means a one-line summary; a failover expands into the attempts that produced the answer. The routed model is also appended to the end
-of each turn's status row, so the last line of every reply carries `⚡ <upstream model>` without opening
-anything. The label reads `⚡ <channel> / <account> · <full model id>`, hiding a part the gateway withheld,
-and repeats the same facts in its tooltip. Rows that carry this label also get 10px of breathing room before
-the next message (`--portara-status-row-gap` overrides it). And `/portara route` prints the same facts once,
-on demand, without spending a model call — falling back to the session's last recorded route when the
+One row per conversation Turn, placed at the **opening of that Turn's assistant content** — after the user's
+prompt and above the process disclosure — at the same level as a tool-call card. It stays outside the
+process fold, so folding a turn's work never hides the route. No failover means a one-line summary; a
+failover expands into the attempts that produced the answer. And `/portara route` prints the same facts
+once, on demand, without spending a model call — falling back to the session's last recorded route when the
 gateway's 15-minute live cache has already expired.
 
 ```text
@@ -53,8 +51,7 @@ The bundle has two halves that share one package and one profile row — no kern
 | Host | `llm/stream` | after each conversation call (successful or failed) queries `GET <baseURL>/route-info`, optionally polling while the call is still streaming |
 | Host | `appendPluginRecord()` | writes a `plugin:portara/route` record — an ignorable, log-only event that older readers retain and skip |
 | Client | `uiConversation.events.register()` | one Chat row per Turn, keyed by the gateway session and the Turn number; later records of that Turn update it instead of stacking |
-| Client | `conversation.chat.node` slot | the collapsible row, localized in English and Chinese, styled with host theme tokens |
-| Client | `conversation.chat.assistant-actions` slot | appends the routed model to the turn status row via one flex item ordered after the host-owned clock |
+| Client | `conversation.chat.node` slot | the collapsible row, localized in English and Chinese, styled with host theme tokens, positioned at the Turn's opening |
 | Host | `/portara` command | `route` prints the session's current route and refreshes the card; the handler answers the UI directly, so no model call is spent |
 
 ### Behaviour guarantees
@@ -67,8 +64,8 @@ The bundle has two halves that share one package and one profile row — no kern
   records through `appendPluginRecord()` and resolves the Host's own Session module instance first, because
   a second copy of that module cannot brand the Host's `Session`.
 - **One card per Turn** — records are deduped by the observed routing facts, records of the same Turn update
-  that Turn's card, and each Turn anchors its card at its own opening, so paging in older history never moves
-  or loses one.
+  that Turn's card, and every Turn renders its card at its own opening outside the process fold, so paging in
+  older history never moves or loses one.
 - **No secrets** — the API key stays in the Host process; records carry only the routing facts the gateway
   chose to expose, and nothing is logged.
 
@@ -128,7 +125,8 @@ gateway. Credentials resolve through the Host credential service, falling back t
 
 1. Send one message over the gateway route.
 2. A `⚡ Routed to …` row appears next to the reply; with a failover it is collapsible.
-3. The end of the turn status row shows `⚡ <upstream model>`.
+3. The card sits at the Turn's opening — after your prompt, above the process disclosure — and remains
+   visible when the process is folded.
 4. Run `/portara route` — the command prints channel, account, upstream model, and the failover history;
    in an old conversation it reports the last recorded route and says so.
 5. The session log holds a `plugin:portara/route` event with `ignorable: true`.
@@ -261,7 +259,7 @@ dsh-plugin-portara/
 [dsh-badge]: https://img.shields.io/badge/dsh-0.2.2--alpha.2-6f42c1?style=flat-square
 [node-badge]: https://img.shields.io/badge/node-%3E%3D20-339933?style=flat-square&logo=node.js&logoColor=white
 [platform-badge]: https://img.shields.io/badge/platform-web-2ea44f?style=flat-square
-[tests-badge]: https://img.shields.io/badge/tests-64%20passing-brightgreen?style=flat-square
+[tests-badge]: https://img.shields.io/badge/tests-56%20passing-brightgreen?style=flat-square
 [license-badge]: https://img.shields.io/github/license/Dynesshely/dsh-plugin-portara?style=flat-square
 [commit-badge]: https://img.shields.io/github/last-commit/Dynesshely/dsh-plugin-portara?style=flat-square
 [stars-badge]: https://img.shields.io/github/stars/Dynesshely/dsh-plugin-portara?style=flat-square
