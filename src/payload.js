@@ -90,7 +90,7 @@ function normalizeHistoryEntry(entry, index) {
  * writes nothing and the chat shows nothing — the documented silent path.
  *
  * @param {unknown} raw - parsed JSON response body.
- * @param {{ turn?: number, step?: number }} [coordinates] - Session placement.
+ * @param {{ turn?: number, step?: number, anchorSeq?: number }} [coordinates] - Session placement.
  * @returns {object | undefined} payload for `plugin:portara/route`, or undefined.
  */
 export function normalizeRouteInfo(raw, coordinates = {}) {
@@ -124,6 +124,9 @@ export function normalizeRouteInfo(raw, coordinates = {}) {
   const step = Number.isSafeInteger(coordinates.step) && /** @type {number} */ (coordinates.step) >= 0
     ? /** @type {number} */ (coordinates.step)
     : undefined
+  const anchorSeq = Number.isSafeInteger(coordinates.anchorSeq) && /** @type {number} */ (coordinates.anchorSeq) >= 0
+    ? /** @type {number} */ (coordinates.anchorSeq)
+    : undefined
   return {
     version: PAYLOAD_VERSION,
     sessionKey,
@@ -132,6 +135,7 @@ export function normalizeRouteInfo(raw, coordinates = {}) {
     history,
     ...(turn === undefined ? {} : { turn }),
     ...(turn === undefined || step === undefined ? {} : { step }),
+    ...(anchorSeq === undefined ? {} : { anchorSeq }),
   }
 }
 

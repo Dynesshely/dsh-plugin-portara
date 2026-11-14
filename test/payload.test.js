@@ -87,6 +87,13 @@ test('coordinates place the row inside a step only when both are known', () => {
   assert.equal('turn' in normalizeRouteInfo(ROUTED, { turn: -1, step: 0 }), false)
 })
 
+test('the Turn opening sequence travels with the record', () => {
+  const payload = normalizeRouteInfo(ROUTED, { turn: 3, step: 1, anchorSeq: 120 })
+  assert.equal(payload.anchorSeq, 120)
+  assert.equal('anchorSeq' in normalizeRouteInfo(ROUTED, { turn: 3 }), false)
+  assert.equal('anchorSeq' in normalizeRouteInfo(ROUTED, { turn: 3, anchorSeq: -1 }), false)
+})
+
 test('malformed answers are rejected rather than trusted', () => {
   assert.equal(normalizeRouteInfo(undefined), undefined)
   assert.equal(normalizeRouteInfo('route.info'), undefined)

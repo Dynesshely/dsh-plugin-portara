@@ -103,14 +103,24 @@ export function sessionModuleCandidates(ctx) {
 /**
  * Read the Session placement of the newest step boundary without touching the
  * (private) event log: `eventAt()` is the supported point read.
+ *
+ * Besides the coordinates, the walk records the Turn's opening sequence — the
+ * first `step/start` of that Turn (falling back to its `turn/start`). Sending it
+ * with the record lets the browser anchor the card deterministically instead of
+ * re-deriving Turn boundaries from whatever history window it happens to hold.
+ *
  * @param {object} session - Session instance.
- * @returns {{ turn?: number, step?: number }} placement, empty when unknown.
+ * @returns {{ turn?: number, step?: number, anchorSeq?: number }} placement, empty when unknown.
  */
 export function sessionCoordinates(session) {
   if (session === null || typeof session !== 'object') return {}
   const end = Number(session.seq)
   if (!Number.isSafeInteger(end) || end <= 0 || typeof session.eventAt !== 'function') return {}
-  const floor = Math.max(0, end - 64)
+  let turn
+  let step
+  let firstStepSeq
+  let turnStartSeq
+  const floor = Math.max(0, end - 2_000)
   for (let seq = end - 1; seq >= floor; seq -= 1) {
     let event
     try {
@@ -118,19 +128,31 @@ export function sessionCoordinates(session) {
     } catch {
       return {}
     }
-    if (event === undefined || event === null) continue
-    if (event.type === 'step/start' && event.data !== null && typeof event.data === 'object') {
-      const { turn, step } = /** @type {{ turn?: unknown, step?: unknown }} */ (event.data)
-      if (Number.isSafeInteger(turn) && Number.isSafeInteger(step)) {
-        return { turn: /** @type {number} */ (turn), step: /** @type {number} */ (step) }
+    if (event === undefined || event === null || event.data === null || typeof event.data !== 'object') continue
+    const { data } = event
+    if (event.type === 'step/start' && Number.isSafeInteger(data.turn) && Number.isSafeInteger(data.step)) {
+      if (turn === undefined) {
+        turn = data.turn
+        step = data.step
+        firstStepSeq = seq
+      } else if (data.turn === turn) {
+        firstStepSeq = seq
+      }
+    } else if (event.type === 'turn/start' && Number.isSafeInteger(data.turn)) {
+      if (turn === undefined) turn = data.turn
+      if (data.turn === turn) {
+        turnStartSeq = seq
+        break
       }
     }
-    if (event.type === 'turn/start' && event.data !== null && typeof event.data === 'object') {
-      const { turn } = /** @type {{ turn?: unknown }} */ (event.data)
-      if (Number.isSafeInteger(turn)) return { turn: /** @type {number} */ (turn) }
-    }
   }
-  return {}
+  if (turn === undefined) return {}
+  const anchorSeq = firstStepSeq ?? turnStartSeq
+  return {
+    turn,
+    ...(step === undefined ? {} : { step }),
+    ...(anchorSeq === undefined ? {} : { anchorSeq }),
+  }
 }
 
 /**

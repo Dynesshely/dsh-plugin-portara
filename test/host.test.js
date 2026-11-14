@@ -323,6 +323,25 @@ async function routeGateway(body, seen = []) {
   }
 }
 
+test('session coordinates carry the Turn opening sequence', async () => {
+  const { sessionCoordinates } = await import('../src/host/records.js')
+  const events = {
+    0: { type: 'turn/start', data: { turn: 7 } },
+    1: { type: 'user/message', data: { turn: 7 } },
+    2: { type: 'step/start', data: { turn: 7, step: 1 } },
+    3: { type: 'assistant/message', data: { turn: 7, step: 1 } },
+    4: { type: 'step/end', data: { turn: 7, step: 1 } },
+    5: { type: 'step/start', data: { turn: 7, step: 2 } },
+    6: { type: 'plugin:portara/route', data: { turn: 7, step: 2 } },
+  }
+  const session = { seq: 7, eventAt: (seq) => events[seq] }
+  const coordinates = sessionCoordinates(session)
+  assert.equal(coordinates.turn, 7)
+  assert.equal(coordinates.step, 2)
+  // The first step of the Turn, not the newest one.
+  assert.equal(coordinates.anchorSeq, 2)
+})
+
 test('the /portara command registers with the route predicate', { skip }, async () => {
   const harness = fakeContext({ profileDir: makeProfileDir(), baseURL: 'http://127.0.0.1:1/v1', apiKeyEnv: 'K', apiKey: 'k' })
   apply(harness.ctx, { timeoutMs: 200, pollIntervalMs: 0 })

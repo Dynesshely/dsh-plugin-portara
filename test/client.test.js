@@ -442,6 +442,28 @@ test('a card sits at the opening of the Turn assistant content', () => {
   assert.equal(node.data.turn, 4)
 })
 
+test('the host-provided Turn opening wins over a re-derived anchor', () => {
+  const { ctx, registrations } = createClientContext()
+  moduleNamespace.apply(ctx)
+  const definition = registrations.definitions[0]
+  const data = readPayload({ ...SWITCHED, turn: 4, step: 1, anchorSeq: 90 })
+  const stepLocation = {
+    kind: 'step',
+    turn: { turn: 4, start: { seq: 80 }, steps: [{ start: { seq: 85 }, step: 1 }] },
+    step: { step: 1 },
+  }
+  const node = definition.buildViewNode({
+    key: 'portara-route:8ff4d582#4',
+    kind: 'portara-route',
+    id: '8ff4d582#4',
+    state: data,
+    start: { event: { seq: 99 }, role: 'start', location: stepLocation },
+    matches: [{ event: { seq: 99 }, role: 'start', location: stepLocation }],
+  })
+  assert.equal(node.anchorSeq, 90)
+  assert.deepEqual(node.location, { kind: 'turn', turn: stepLocation.turn })
+})
+
 test('a view node carries the engine key, the anchor, and the payload', () => {
   const { ctx, registrations } = createClientContext()
   moduleNamespace.apply(ctx)

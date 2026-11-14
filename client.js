@@ -26,7 +26,7 @@ window.__ModuleLoader__.load({
     /** Durable record type written by the host half. */
     const RECORD_TYPE = 'plugin:portara/route'
     /** Visible build stamp: tells a stale page from a fresh one at a glance. */
-    const BUILD = '2026-11-15T03:55Z-anchor-fix'
+    const BUILD = '2026-11-15T04:10Z-host-anchor'
     /** Attribute marking the status-row label, used to scope the spacing rule. */
     const STATUS_ATTR = 'data-portara-route-status'
     /**
@@ -122,12 +122,16 @@ window.__ModuleLoader__.load({
       const turn = Number.isSafeInteger(payload.turn) && /** @type {number} */ (payload.turn) >= 0
         ? /** @type {number} */ (payload.turn)
         : undefined
+      const anchorSeq = Number.isSafeInteger(payload.anchorSeq) && /** @type {number} */ (payload.anchorSeq) >= 0
+        ? /** @type {number} */ (payload.anchorSeq)
+        : undefined
       return {
         sessionKey,
         updatedAt: text(payload.updatedAt) ?? null,
         route,
         history,
         ...(turn === undefined ? {} : { turn }),
+        ...(anchorSeq === undefined ? {} : { anchorSeq }),
       }
     }
 
@@ -423,12 +427,15 @@ window.__ModuleLoader__.load({
         // its own Turn. Anchor at the opening of the Turn's assistant content.
         const latest = context.matches.length > 0 ? context.matches[context.matches.length - 1] : start
         const placement = turnOpeningOf(latest.location) ?? turnOpeningOf(start.location)
+        // The Host stamps the Turn's opening when it writes the record; prefer it
+        // over anything re-derived from the browser's loaded history window.
+        const anchorSeq = data.anchorSeq ?? placement?.anchorSeq ?? latest.event.seq
         return {
           key: context.key,
           kind: KIND,
           id: context.id,
           target: 'chat',
-          anchorSeq: placement?.anchorSeq ?? latest.event.seq,
+          anchorSeq,
           location: placement?.location ?? latest.location,
           // Turn position keeps the card outside the process disclosure, so a
           // folded process does not hide the route line.
