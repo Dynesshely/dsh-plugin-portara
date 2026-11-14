@@ -31,10 +31,10 @@ context is invisible from inside the conversation. This bundle puts it where the
 One row per gateway session, at the same level as a tool-call card. No failover means a one-line summary; a
 failover expands into the attempts that produced the answer. The routed model is also appended to the end
 of each turn's status row, so the last line of every reply carries `⚡ <upstream model>` without opening
-anything. The label keeps the full routed model id (`vendor/model`) next to a small outline glyph, with the
-channel and account in its tooltip. And `/portara route` prints the same facts once, on demand, without
-spending a model call — falling back to the session's last recorded route when the gateway's 15-minute live
-cache has already expired.
+anything. The label reads `⚡ <channel> / <account> · <full model id>`, hiding a part the gateway withheld,
+and repeats the same facts in its tooltip. And `/portara route` prints the same facts once, on demand,
+without spending a model call — falling back to the session's last recorded route when the gateway's
+15-minute live cache has already expired.
 
 ```text
 Attempt 1 · CommandCode / ACP-002 · quota cooldown · HTTP 429 · 00:22:31
@@ -255,7 +255,7 @@ dsh-plugin-portara/
 [dsh-badge]: https://img.shields.io/badge/dsh-0.2.2--alpha.2-6f42c1?style=flat-square
 [node-badge]: https://img.shields.io/badge/node-%3E%3D20-339933?style=flat-square&logo=node.js&logoColor=white
 [platform-badge]: https://img.shields.io/badge/platform-web-2ea44f?style=flat-square
-[tests-badge]: https://img.shields.io/badge/tests-58%20passing-brightgreen?style=flat-square
+[tests-badge]: https://img.shields.io/badge/tests-59%20passing-brightgreen?style=flat-square
 [license-badge]: https://img.shields.io/github/license/Dynesshely/dsh-plugin-portara?style=flat-square
 [commit-badge]: https://img.shields.io/github/last-commit/Dynesshely/dsh-plugin-portara?style=flat-square
 [stars-badge]: https://img.shields.io/github/stars/Dynesshely/dsh-plugin-portara?style=flat-square

@@ -117,6 +117,17 @@ window.__ModuleLoader__.load({
     }
 
     /**
+     * Compose the disclosed gateway location.
+     * @param {unknown} channel - channel name, when disclosed.
+     * @param {unknown} account - upstream account, when disclosed.
+     * @returns {string | undefined} `channel / account`, or the one part that exists.
+     */
+    function routeTargetOf(channel, account) {
+      const parts = [channel, account].filter(value => typeof value === 'string' && value !== '')
+      return parts.length === 0 ? undefined : parts.join(' / ')
+    }
+
+    /**
      * Read the model name the gateway actually served.
      * @param {object | undefined} payload - narrowed payload.
      * @returns {string | undefined} upstream model, falling back to the alias.
@@ -126,35 +137,6 @@ window.__ModuleLoader__.load({
       const route = payload.route
       if (route === null || typeof route !== 'object') return undefined
       return route.upstreamModel ?? route.alias ?? undefined
-    }
-
-    /**
-     * Routing glyph shared by the Chat row and the status-row label.
-     *
-     * Drawn inline on the host's 16px outline grid with a 1.1px `currentColor`
-     * stroke, because a Client plugin may not import the host icon sprite: this
-     * keeps the mark in the same weight and colour language as the surrounding
-     * outline controls.
-     *
-     * @param {{ size?: number }} [options] - rendered edge length in pixels.
-     * @returns {object} React element.
-     */
-    function RouteIcon({ size = 14 } = {}) {
-      return h('svg', {
-        width: size,
-        height: size,
-        viewBox: '0 0 16 16',
-        fill: 'none',
-        stroke: 'currentColor',
-        strokeWidth: 1.1,
-        strokeLinecap: 'round',
-        strokeLinejoin: 'round',
-        'aria-hidden': 'true',
-        focusable: 'false',
-        style: { flex: 'none', display: 'block' },
-      }, [
-        h('path', { key: 'bolt', d: 'M9.9 1.7 3.7 9.2h4l-1.3 5.1 6.2-7.5H8.6z' }),
-      ])
     }
 
     /**
@@ -254,10 +236,7 @@ window.__ModuleLoader__.load({
               color: 'var(--dsw-alias-label-secondary)',
             },
           }, [
-            h('span', {
-              key: 'icon',
-              style: { flex: 'none', display: 'inline-flex', color: 'var(--dsw-alias-brand-primary)' },
-            }, RouteIcon({ size: 14 })),
+            h('span', { key: 'icon', 'aria-hidden': true, style: { flex: 'none' } }, '⚡'),
             h('span', {
               key: 'text',
               style: { minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
@@ -325,6 +304,7 @@ window.__ModuleLoader__.load({
         if (model === undefined) return null
         const channel = routed.route?.channel
         const account = routed.route?.account
+        const target = routeTargetOf(channel, account)
         const hint = [model, channel, account]
           .filter(value => typeof value === 'string' && value !== '')
           .join(' · ')
@@ -341,10 +321,8 @@ window.__ModuleLoader__.load({
           },
           ...(hint === '' ? {} : { title: hint }),
         }, [
-          h('span', {
-            key: 'icon',
-            style: { display: 'inline-flex', color: 'var(--dsw-alias-brand-primary)' },
-          }, RouteIcon({ size: 13 })),
+          h('span', { key: 'icon', 'aria-hidden': true }, '⚡'),
+          ...(target === undefined ? [] : [h('span', { key: 'target' }, `${target} · `)]),
           h('span', { key: 'model' }, model),
         ])
       }
@@ -399,7 +377,7 @@ window.__ModuleLoader__.load({
         }, createModelLabel(ctx)))
       },
       // Pure helpers for unit tests; the module loader ignores extra keys.
-      __test: { readPayload, summaryOf, historyRows, formatTime, routedModelOf, RouteIcon, DICTS, KIND, RECORD_TYPE },
+      __test: { readPayload, summaryOf, historyRows, formatTime, routedModelOf, routeTargetOf, DICTS, KIND, RECORD_TYPE },
     }
   },
 })

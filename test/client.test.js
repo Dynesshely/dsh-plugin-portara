@@ -314,7 +314,7 @@ test('the status row appends the routed model after the host-owned clock', () =>
   assert.doesNotMatch(textsOf(tree).join(''), /deepseek\/deepseek-v4\.1-flash/u)
 })
 
-test('the row keeps the routed model id whole and draws an outline glyph', () => {
+test('the row shows the emoji, the channel and account, then the full model id', () => {
   const { ctx, registrations } = createClientContext()
   moduleNamespace.apply(ctx)
   const label = registrations.slots.find(slot => slot.options.id === 'portara-route-model')
@@ -325,16 +325,28 @@ test('the row keeps the routed model id whole and draws an outline glyph', () =>
   const tree = label.component({
     useChat: selector => selector({ nodes: { values: () => [{ kind: 'portara-route', data: payload }] } }),
   })
-  const texts = textsOf(tree).join(' | ')
+  const texts = textsOf(tree).join('')
+  assert.match(texts, /⚡/u)
+  assert.match(texts, /OpenDesign \/ ACP-003/u)
   assert.match(texts, /deepseek\/deepseek-v4\.1-flash/u)
-  assert.doesNotMatch(texts, /⚡/u)
-  const icon = findElement(tree, 'svg')
-  assert.ok(icon !== undefined)
-  assert.equal(icon.props.viewBox, '0 0 16 16')
-  assert.equal(icon.props.stroke, 'currentColor')
-  assert.equal(icon.props['aria-hidden'], 'true')
-  assert.ok(findElement(icon, 'path') !== undefined)
+  assert.equal(texts, '⚡OpenDesign / ACP-003 · deepseek/deepseek-v4.1-flash')
+  assert.equal(findElement(tree, 'svg'), undefined)
   assert.equal(tree.props.title, 'deepseek/deepseek-v4.1-flash · OpenDesign · ACP-003')
+})
+
+test('a redacted route shows the model without a target', () => {
+  const { ctx, registrations } = createClientContext()
+  moduleNamespace.apply(ctx)
+  const label = registrations.slots.find(slot => slot.options.id === 'portara-route-model')
+  const payload = readPayload({
+    ...SWITCHED,
+    route: { alias: 'balance/deepseek-flash', channel: null, account: null, upstreamModel: 'deepseek/deepseek-v4.1-flash' },
+  })
+  const tree = label.component({
+    useChat: selector => selector({ nodes: { values: () => [{ kind: 'portara-route', data: payload }] } }),
+  })
+  assert.equal(textsOf(tree).join(''), '⚡deepseek/deepseek-v4.1-flash')
+  assert.equal(tree.props.title, 'deepseek/deepseek-v4.1-flash')
 })
 
 test('the status label stays silent without a route and falls back to the alias', () => {

@@ -77,9 +77,10 @@ The end of a turn's status row (copy, feedback, usage, clock) is owned by `ui-ch
 label therefore registers one entry whose root element sets a larger CSS `order`: flex places it after the
 host-owned clock without restyling or moving any host control, and it disappears when no routing record
 exists. The routed model is read from the plugin's own Chat node through the `useChat` snapshot selector,
-so the label always matches the card above it. The label keeps the full routed model id and draws its glyph
-inline on the host's 16px outline grid with a `currentColor` stroke: a Client plugin may not import the host
-icon sprite, so matching the grid and weight is what keeps it in the same visual language.
+so the label always matches the card above it. The label reads
+`⚡ <channel> / <account> · <full model id>`: the emoji matches the Chat card's mark, and each disclosed part
+is shown as-is (a withheld channel or account simply drops out) rather than shortened, because the point of
+the line is to answer "which model, where" at a glance.
 
 ### 7. `/portara route` answers the UI, not the model
 
